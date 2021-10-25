@@ -1,0 +1,10 @@
+{
+  "language": "java",
+  "app": "sbt cdktf/run",
+  "terraformProviders": [
+    "aws@~> 3.63.0"
+  ],
+  "terraformModules": [],
+  "context": {},
+  "projectId": "29d0b49f-52bb-4f22-a01e-20e56bd7ea35"
+}
