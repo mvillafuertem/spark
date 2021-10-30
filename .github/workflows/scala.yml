@@ -15,11 +15,11 @@ jobs:
         with:
           python-version: '3.x'
       - name: Install test dependencies
-        run: cd modules/ansible && pip3 install molecule docker yamllint ansible-lint
+        run: cd modules/ansible && pip3 install molecule[docker] yamllint ansible-lint ansible
       - name: Run Molecule tests
         run: |
           cd modules/ansible/roles/bastion && molecule test && \
-          cd modules/ansible/roles/spark && molecule test
+          cd ../spark && molecule test
         env:
           PY_COLORS: '1'
           ANSIBLE_FORCE_COLOR: '1'
