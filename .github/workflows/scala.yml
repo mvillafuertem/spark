@@ -4,6 +4,26 @@ on: [ push, pull_request ]
 
 jobs:
 
+  ansible:
+    name: Ansible
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the codebase
+        uses: actions/checkout@v2
+      - name: Set up Python 3
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+      - name: Install test dependencies
+        run: cd modules/ansible && pip3 install molecule docker yamllint ansible-lint
+      - name: Run Molecule tests
+        run: |
+          cd modules/ansible/roles/bastion && molecule test && \
+          cd modules/ansible/roles/spark && molecule test
+        env:
+          PY_COLORS: '1'
+          ANSIBLE_FORCE_COLOR: '1'
+
   cdktf:
     name: Cdktf
     runs-on: ubuntu-latest

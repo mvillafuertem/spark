@@ -41,3 +41,93 @@ WITH THE COMMAND `sbt docs/mdoc`
 Spark is a project with many proof of concept modules...
 
 ****
+
+
+## Useful commands
+
+
+
+
+### pyenv
+
+Installing pyenv on Mac OS X is very simple with Homebrew.
+
+```shell
+brew install pyenv
+brew install pyenv-virtualenv
+```
+
+After installation, add the following at the bottom of your profile (~/.bash_profile or ~/.zshenv)
+
+```shell
+if which pyenv > /dev/null; then eval "$(pyenv init -)"; fi
+if which pyenv-virtualenv-init > /dev/null; then eval "$(pyenv virtualenv-init -)"; fi
+```
+
+```shell
+export PATH="$(pyenv root)/shims:$PATH"
+```
+
+Installing new Python versions is very straightforward. All Python versions are installed in the versions directory under the pyenv root.
+
+```shell
+pyenv install 3.9.5
+```
+
+The pyenv versions command will also show the virtual environments along with the installed versions of Python.
+
+```shell
+pyenv versions
+```
+
+Create a virtual environment for a specific Python version.
+
+```shell
+pyenv virtualenv 3.9.5 python-3.9.5
+```
+
+List existing virtual environments created by pyenv
+
+```shell
+pyenv virtualenvs
+```
+
+Activate a virtual environment.
+
+```shell
+pyenv activate python-3.9.5
+pyenv local python-3.9.5
+```
+
+### pip
+
+```shell
+pip --version
+```
+
+### molecule
+
+Install molecule
+```shell
+pip install 'molecule[docker]'
+```
+
+Create a role
+```shell
+molecule init role --driver-name docker bastion
+```
+
+Run test
+```shell
+molecule test
+```
+
+Run test
+```shell
+molecule destroy
+```
+
+#### Links
+https://www.akbaribrahim.com/managing-multiple-python-versions-with-pyenv/
+https://www.akbaribrahim.com/managing-python-virtual-environments-with-pyenv-virtualenv/
+

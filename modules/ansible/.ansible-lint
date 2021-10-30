@@ -1,0 +1,4 @@
+skip_list:
+ - '102'  # No Jinja2 in when
+ - '106'  # Role name {} does not match ``^[a-z][a-z0-9_]+$`` pattern                                                                                                                               │
+ - '207'  # Nested jinja pattern - role dns lookup('dig')

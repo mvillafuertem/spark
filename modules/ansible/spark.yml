@@ -1,0 +1,26 @@
+---
+- hosts: all
+  become: yes
+  vars_files:
+    - "vars/vars.yml"
+  tasks:
+    - name: Install a list of packages
+      apt:
+        name: "{{ packages }}"
+      vars:
+        packages:
+          - python3-pip
+          - openjdk-8-jdk
+          - scala
+    - name: Download spark zip
+      get_url:
+        url: "{{ bin_spark_url }}"
+        dest: /opt
+    - name: Extract bin spark
+      unarchive:
+        src: /opt/{{ zip_name }}
+        dest: /opt
+    - name: Set environment variable PYSPARK_PYTHON
+      lineinfile:
+        path: /etc/environment
+        line: PYSPARK_PYTHON=python3

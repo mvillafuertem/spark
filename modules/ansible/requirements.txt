@@ -1,0 +1,4 @@
+ansible-lint==4.3.5
+detect-secrets==0.14.3
+yamllint==1.26.0
+molecule[ansible,docker,lint]==3.5.2
