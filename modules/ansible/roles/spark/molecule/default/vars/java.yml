@@ -1,0 +1,5 @@
+---
+java_oracle_url: "http://download.oracle.com/otn-pub/java/jdk/8u141-b15/336fa29ff2bb4ef291e347e091f7f4a7/jdk-8u141-linux-x64.tar.gz"
+java_tar: "jdk-8u141-linux-x64.tar.gz"
+java_home: "/opt/jdk1.8.0_141"
+java_cacerts_path: "/opt/java-current/lib/security/cacerts"

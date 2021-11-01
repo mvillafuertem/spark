@@ -2,6 +2,11 @@
 - name: Converge
   hosts: all
   tasks:
+    - name: Include vars
+      include_vars:
+        dir: vars
     - name: "Include spark"
       include_role:
         name: "spark"
+      vars:
+        executing_molecule: true

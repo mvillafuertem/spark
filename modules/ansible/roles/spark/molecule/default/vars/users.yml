@@ -1,0 +1,4 @@
+---
+spark_user: "spark"
+spark_group: "spark"
+spark_home: "/home/spark"

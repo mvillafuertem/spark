@@ -1,0 +1,23 @@
+---
+- name: java | BLOCK | Install download java 8 oracle
+  block:
+    - name: java | Install download java 8 oracle
+      get_url:
+        url: "{{ java_oracle_url }}"
+        headers:
+          Cookie: 'oraclelicense=accept-securebackup-cookie'
+        dest: "/opt/{{ java_tar }}"
+      register: java_downloaded_tar
+
+    - name: java | Install extract package
+      unarchive:
+        src: "/opt/{{ java_tar }}"
+        dest: "/opt"
+        copy: no
+        group: "{{ spark_group }}"
+        owner: "{{ spark_user }}"
+      when: java_downloaded_tar.changed
+
+    - name: java | Make Java available for system
+      command: 'alternatives --install "/usr/bin/java" "java" "{{ java_home }}/bin/java" 2000'
+      when: java_downloaded_tar.changed

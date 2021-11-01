@@ -1,0 +1,6 @@
+---
+- name: users | Add application user spark
+  user:
+    name: "{{ spark_user }}"
+    home: "{{ spark_home }}"
+    shell: "/bin/bash"

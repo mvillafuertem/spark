@@ -1,2 +1,4 @@
 ---
 # tasks file for spark
+- include: users.yml
+- include: java.yml
