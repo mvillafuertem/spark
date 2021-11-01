@@ -1,4 +1,4 @@
-name: scalaci
+name: sparkci
 
 on: [ push, pull_request ]
 

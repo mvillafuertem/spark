@@ -22,8 +22,8 @@ WITH THE COMMAND `sbt docs/mdoc`
   <a href="https://codecov.io/gh/mvillafuertem/spark">
     <img src="https://codecov.io/gh/mvillafuertem/spark/branch/master/graph/badge.svg?style=svg"/>
   </a>    
-  <a href="https://github.com/mvillafuertem/spark/actions?query=workflow%3A%22scalaci%22">
-    <img src="https://github.com/mvillafuertem/spark/workflows/scalaci/badge.svg"/>
+  <a href="https://github.com/mvillafuertem/spark/actions?query=workflow%3A%22sparkci%22">
+    <img src="https://github.com/mvillafuertem/spark/workflows/sparkci/badge.svg"/>
   </a>  
   <a href="https://circleci.com/gh/mvillafuertem/spark">
     <img src="https://img.shields.io/circleci/build/github/mvillafuertem/spark?logo=circleci&style=flat"/>
