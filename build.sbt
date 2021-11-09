@@ -1,19 +1,23 @@
+import sbt.Def
+
+import scala.{Console => csl}
+
 Global / onLoad := {
-  import scala.Console
-  val GREEN = Console.GREEN
-  val RESET = Console.RESET
-  println(
-    s"""$GREEN
-       |$GREEN        ███████╗ ██████╗   █████╗  ██████╗  ██╗  ██╗
-       |$GREEN        ██╔════╝ ██╔══██╗ ██╔══██╗ ██╔══██╗ ██║ ██╔╝
-       |$GREEN        ███████╗ ██████╔╝ ███████║ ██████╔╝ █████╔╝
-       |$GREEN        ╚════██║ ██╔═══╝  ██╔══██║ ██╔══██╗ ██╔═██╗
-       |$GREEN        ███████║ ██║      ██║  ██║ ██║  ██║ ██║  ██╗
-       |$GREEN        ╚══════╝ ╚═╝      ╚═╝  ╚═╝ ╚═╝  ╚═╝ ╚═╝  ╚═╝
-       |$RESET        v.${version.value}
-       |""".stripMargin)
+  val GREEN = csl.GREEN
+  val RESET = csl.RESET
+  println(s"""$GREEN
+             |$GREEN        ███████╗ ██████╗   █████╗  ██████╗  ██╗  ██╗
+             |$GREEN        ██╔════╝ ██╔══██╗ ██╔══██╗ ██╔══██╗ ██║ ██╔╝
+             |$GREEN        ███████╗ ██████╔╝ ███████║ ██████╔╝ █████╔╝
+             |$GREEN        ╚════██║ ██╔═══╝  ██╔══██║ ██╔══██╗ ██╔═██╗
+             |$GREEN        ███████║ ██║      ██║  ██║ ██║  ██║ ██║  ██╗
+             |$GREEN        ╚══════╝ ╚═╝      ╚═╝  ╚═╝ ╚═╝  ╚═╝ ╚═╝  ╚═╝
+             |$RESET        v.${version.value}
+             |""".stripMargin)
   (Global / onLoad).value
 }
+
+val scala213 = "2.13.7"
 
 lazy val spark = (project in file("."))
   .aggregate(
@@ -21,22 +25,20 @@ lazy val spark = (project in file("."))
     notebooks
   )
   .settings(
-    scalaVersion := "2.13.6",
+    scalaVersion := scala213,
     welcomeMessage
   )
 
-
 lazy val cdktf = (project in file("modules/cdktf"))
-  .settings(scalaVersion := "2.13.6")
+  .settings(scalaVersion := scala213)
+  .settings(watchTriggers += baseDirectory.value.toGlob / "*.scala")
 
 lazy val notebooks = (project in file("modules/notebooks"))
-  .settings(scalaVersion := "2.13.6")
+  .settings(scalaVersion := scala213)
 
-
-def welcomeMessage = onLoadMessage := {
-  import scala.Console
-  def header(text: String): String = s"${Console.BOLD}${Console.MAGENTA}$text${Console.RESET}"
-  def cmd(text: String): String = s"${Console.GREEN}> ${Console.CYAN}$text${Console.RESET}"
+def welcomeMessage: Def.Setting[String] = onLoadMessage := {
+  def header(text: String): String = s"${csl.BOLD}${csl.MAGENTA}$text${csl.RESET}"
+  def cmd(text: String): String    = s"${csl.GREEN}> ${csl.CYAN}$text${csl.RESET}"
   //def subItem(text: String): String = s"  ${Console.YELLOW}> ${Console.CYAN}$text${Console.RESET}"
 
   s"""|${header("sbt")}:
