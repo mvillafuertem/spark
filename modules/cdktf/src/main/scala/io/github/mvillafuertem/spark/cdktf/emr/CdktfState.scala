@@ -1,10 +1,10 @@
-package io.github.mvillafuertem.spark.cdktf
+package io.github.mvillafuertem.spark.cdktf.emr
 
 import com.hashicorp.cdktf.{ TerraformOutput, TerraformStack }
 import imports.aws._
 import imports.aws.dynamo_db.{ DynamodbTable, DynamodbTableAttribute }
 import imports.aws.s3._
-import io.github.mvillafuertem.spark.cdktf.CdktfStack.CdktfStackConfiguration
+import io.github.mvillafuertem.spark.cdktf.emr.CdktfStack.CdktfStackConfiguration
 import software.constructs.Construct
 
 import scala.jdk.CollectionConverters._

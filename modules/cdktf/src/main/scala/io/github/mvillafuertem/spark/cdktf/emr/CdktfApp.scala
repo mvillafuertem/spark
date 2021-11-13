@@ -1,18 +1,11 @@
-package io.github.mvillafuertem.spark.cdktf
+package io.github.mvillafuertem.spark.cdktf.emr
 
-import com.hashicorp._
-import com.hashicorp.cdktf.{ AppOptions, S3Backend }
-import io.github.mvillafuertem.spark.cdktf.CdktfStack.CdktfStackConfiguration
+import com.hashicorp.cdktf
+import com.hashicorp.cdktf.{AppOptions, S3Backend}
+import io.github.mvillafuertem.spark.cdktf.emr.CdktfStack.CdktfStackConfiguration
 
 import scala.io.Source
 import scala.jdk.CollectionConverters._
-
-// 1. yarn --cwd modules/cdktf/ install
-// 2. yarn --cwd modules/cdktf/ get
-
-// yarn --cwd modules/cdktf/ plan
-// yarn --cwd modules/cdktf/ apply
-// yarn --cwd modules/cdktf/ destroy
 
 // yarn --cwd modules/cdktf/ planState
 // yarn --cwd modules/cdktf/ applyState
