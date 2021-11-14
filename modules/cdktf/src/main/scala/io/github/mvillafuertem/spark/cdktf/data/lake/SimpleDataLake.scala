@@ -3,13 +3,14 @@ package io.github.mvillafuertem.spark.cdktf.data.lake
 import com.hashicorp.cdktf
 import com.hashicorp.cdktf.{AppOptions, TerraformStack}
 import imports.aws.AwsProvider
-import imports.aws.athena.AthenaDatabase
-import imports.aws.glue.{GlueCrawler, GlueCrawlerS3Target}
+import imports.aws.athena.{AthenaDatabase, AthenaNamedQuery, AthenaWorkgroup, AthenaWorkgroupConfiguration, AthenaWorkgroupConfigurationResultConfiguration}
+import imports.aws.glue.{GlueCatalogDatabase, GlueCrawler, GlueCrawlerS3Target}
 import imports.aws.iam.{IamPolicy, IamRole, IamRolePolicy, IamRolePolicyAttachment}
 import imports.aws.s3.{S3Bucket, S3BucketObject}
 import software.constructs.Construct
 
 import java.io.File
+import java.util.UUID
 import scala.jdk.CollectionConverters._
 
 final class SimpleDataLake(scope: Construct, id: String) extends TerraformStack(scope, id) {
@@ -38,6 +39,7 @@ final class SimpleDataLake(scope: Construct, id: String) extends TerraformStack(
     .bucket(s3Bucket.getId)
     .key("data/movies.csv")
     .source(new File("modules/cdktf/src/main/resources/data/lake/databucket/data/movies.csv").getAbsolutePath)
+    .etag(UUID.randomUUID().toString)
     .build()
 
   private val _: S3BucketObject = S3BucketObject.Builder
@@ -58,21 +60,21 @@ final class SimpleDataLake(scope: Construct, id: String) extends TerraformStack(
                          |  "Version": "2012-10-17",
                          |  "Statement": [
                          |    {
-                         |      "Action": "sts:AssumeRole",
+                         |      "Effect": "Allow",
                          |      "Principal": {
                          |        "Service": "glue.amazonaws.com"
                          |      },
-                         |      "Effect": "Allow",
-                         |      "Sid": ""
+                         |      "Action": "sts:AssumeRole"
                          |    }
                          |  ]
                          |}""".stripMargin)
+    .description("Allows Glue to call AWS services on your behalf.")
+    .maxSessionDuration(3600)
     .build()
 
   private val iamPolicy: IamPolicy = IamPolicy.Builder
     .create(self, "iam_glue_role_policy")
     .name("iam-glue-role-policy")
-    //.role(iamGlueRole.getId)
     .policy(
       s"""{
          |  "Version": "2012-10-17",
@@ -88,7 +90,7 @@ final class SimpleDataLake(scope: Construct, id: String) extends TerraformStack(
          |    {
          |      "Effect": "Allow",
          |      "Action": ["s3:ListBucket"],
-         |      "Resource": ["{${s3Bucket.getArn}}"]
+         |      "Resource": ["${s3Bucket.getArn}"]
          |    },
          |    {
          |      "Effect": "Allow",
@@ -97,7 +99,17 @@ final class SimpleDataLake(scope: Construct, id: String) extends TerraformStack(
          |        "s3:GetObject",
          |        "s3:DeleteObject"
          |      ],
-         |      "Resource": ["{${s3Bucket.getArn}}/*"]
+         |      "Resource": ["${s3Bucket.getArn}/*"]
+         |    },
+         |    {
+         |      "Effect": "Allow",
+         |      "Action": [
+         |        "glue:GetDatabase",
+         |        "glue:CreateDatabase",
+         |        "glue:GetTable",
+         |        "glue:CreateTable"
+         |      ],
+         |      "Resource": "*"
          |    },
          |    {
          |      "Effect": "Allow",
@@ -128,6 +140,28 @@ final class SimpleDataLake(scope: Construct, id: String) extends TerraformStack(
     .role(iamGlueRole.getId)
     .databaseName("lab1-db")
     .tablePrefix("movies_")
+    .build()
+
+  private val athenaWorkgroupConfigurationResultConfiguration: AthenaWorkgroupConfigurationResultConfiguration = imports.aws.athena.AthenaWorkgroupConfigurationResultConfiguration
+    .builder()
+    .outputLocation("s3://simple-data-lake-bucket/results/")
+    .build()
+
+  private val athenaWorkgroup: AthenaWorkgroup = imports.aws.athena.AthenaWorkgroup.Builder
+    .create(self, "athena_workgroup")
+    .name("lab1-athena-workgroup")
+    .configuration(AthenaWorkgroupConfiguration.builder()
+      .resultConfiguration(athenaWorkgroupConfigurationResultConfiguration)
+      .build()
+    )
+    .build()
+
+  private val _: AthenaNamedQuery = AthenaNamedQuery.Builder
+    .create(self, "lab1_athena_named_query")
+    .name("lab1-athena-named-query")
+    .query("SELECT * FROM \"lab1-db\".\"movies_data\" limit 10;")
+    .database("lab1-db")
+    .workgroup(athenaWorkgroup.getId)
     .build()
 
 }

@@ -1,0 +1,76 @@
+@startuml
+
+!pragma layout smetana
+!define STDLIB https://raw.githubusercontent.com/plantuml/plantuml-stdlib/master
+!include STDLIB/awslib/AWSCommon.puml
+!include STDLIB/awslib/AWSSimplified.puml
+!include STDLIB/awslib/General/all.puml
+!include STDLIB/awslib/GroupIcons/all.puml
+!include STDLIB/awslib/Storage/all.puml
+!include STDLIB/awslib/Analytics/all.puml
+!include <tupadr3/common>
+!include STDLIB/office/Users/csv_file.puml
+
+skinparam linetype polyline
+skinparam rectangle<<csv>> {
+    BorderColor white
+    Shadowing false
+    BackgroundColor white
+}
+
+rectangle awscloud <<awscloud>> as "<color:AWS_COLOR><$Cloudalt></color> <color:grey>AWS CLOUD</color>" {
+
+    OFF_CSV_FILE(csv,CSV, rectangle) <<csv>>
+    SimpleStorageService(s3DataLakeSource, "S3 Data Lake Source", "")
+    User(dataAnalyst, "Data Analyst", "")
+    Athena(athena, "Amazon Athena", "")
+
+    rectangle awsglue <<awsglue>> as "<color:#6A40C1><$Glue></color> AWS Glue" {
+        GlueCrawler(glueCrawler, "Crawler", "")
+        GlueDataCatalog(glueDataCatalog, "Data Catalog", "")
+    }
+    csv -r-> s3DataLakeSource
+    s3DataLakeSource -r-> glueCrawler
+    glueCrawler -r-> glueDataCatalog
+    athena -r-> glueDataCatalog
+    dataAnalyst -d-> athena : Analyze
+
+}
+
+@enduml
+
+@startuml
+!include <tupadr3/common>
+!pragma layout smetana
+
+!define ICONURL https://raw.githubusercontent.com/Roemer/plantuml-office/master/office2014
+!include ICONURL/Servers/database_server.puml
+!include ICONURL/Servers/application_server.puml
+!include ICONURL/Concepts/firewall_orange.puml
+!include ICONURL/Clouds/cloud_disaster_red.puml
+!include ICONURL/Users/csv_file.puml
+
+title Office Icons Example
+    OFF_CSV_FILE(asdf,adsf)
+
+package "Sprites" {
+    OFF_DATABASE_SERVER(db,DB)
+    OFF_APPLICATION_SERVER(app,App-Server)
+    OFF_FIREWALL_ORANGE(fw,Firewall)
+    OFF_CLOUD_DISASTER_RED(cloud,Cloud)
+    db <-> app
+    app <--> fw
+    fw <.left.> cloud
+}
+
+package "Images" {
+    rectangle "<img:https://raw.githubusercontent.com/Roemer/plantuml-office/master/office2014/Servers/database_server.png>\r DB" as db2
+    rectangle "<img:https://raw.githubusercontent.com/Roemer/plantuml-office/master/office2014/Servers/application_server.png>\r App-Server" as app2
+    rectangle "<img:https://raw.githubusercontent.com/Roemer/plantuml-office/master/office2014/Concepts/firewall_orange.png>\r Firewall" as fw2
+    rectangle "<img:https://raw.githubusercontent.com/Roemer/plantuml-office/master/office2014/Clouds/cloud_disaster_red.png>\r Cloud" as cloud2
+    db2 <-> app2
+    app2 <--> fw2
+    fw2 <.left.> cloud2
+}
+
+@enduml

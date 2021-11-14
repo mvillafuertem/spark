@@ -42,6 +42,11 @@ Spark is a project with many proof of concept modules...
 
 ****
 
+## Simple Data Lake
+
+<p align="center">
+    <img width="600" src="https://raw.githubusercontent.com/mvillafuertem/spark/master/modules/docs/simple-data-lake.svg" alt="simple-data-lake"/>
+</p>
 
 ## Useful commands
 
