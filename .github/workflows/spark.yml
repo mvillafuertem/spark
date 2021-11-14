@@ -51,3 +51,5 @@ jobs:
           cat modules/cdktf/src/main/resources/stacks/cdktf-state/cdk.tf.json
           sbt "cdktf/runMain io.github.mvillafuertem.spark.cdktf.data.lake.SimpleDataLake" && \
           cat modules/cdktf/src/main/resources/stacks/simple-data-lake/cdk.tf.json
+          sbt "cdktf/runMain io.github.mvillafuertem.spark.cdktf.data.lake.SimpleDataLakeUsingAWSLakeFormation" && \
+          cat modules/cdktf/src/main/resources/stacks/simple-data-lake-using-aws-lake-formation/cdk.tf.json

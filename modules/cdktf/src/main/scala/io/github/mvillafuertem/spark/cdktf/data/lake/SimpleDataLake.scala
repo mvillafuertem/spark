@@ -6,6 +6,7 @@ import imports.aws.AwsProvider
 import imports.aws.athena.{AthenaDatabase, AthenaNamedQuery, AthenaWorkgroup, AthenaWorkgroupConfiguration, AthenaWorkgroupConfigurationResultConfiguration}
 import imports.aws.glue.{GlueCatalogDatabase, GlueCrawler, GlueCrawlerS3Target}
 import imports.aws.iam.{IamPolicy, IamRole, IamRolePolicy, IamRolePolicyAttachment}
+import imports.aws.lake_formation.{LakeformationDataLakeSettings, LakeformationDataLakeSettingsCreateDatabaseDefaultPermissions, LakeformationDataLakeSettingsCreateTableDefaultPermissions}
 import imports.aws.s3.{S3Bucket, S3BucketObject}
 import software.constructs.Construct
 
@@ -32,6 +33,7 @@ final class SimpleDataLake(scope: Construct, id: String) extends TerraformStack(
   private val s3Bucket: S3Bucket = S3Bucket.Builder
     .create(self, "simple_data_lake_bucket")
     .bucket("simple-data-lake-bucket")
+    .forceDestroy(true)
     .build()
 
   private val s3BucketObject: S3BucketObject = S3BucketObject.Builder
@@ -127,10 +129,16 @@ final class SimpleDataLake(scope: Construct, id: String) extends TerraformStack(
          |}""".stripMargin)
     .build()
 
-  private val iamRolePolicyAttachment: IamRolePolicyAttachment = IamRolePolicyAttachment.Builder
+  private val _: IamRolePolicyAttachment = IamRolePolicyAttachment.Builder
     .create(self, "iam_glue_role_policy_attachment")
     .role(iamGlueRole.getId)
     .policyArn(iamPolicy.getArn)
+    .build()
+
+  private val glueCatalogDatabase: GlueCatalogDatabase = GlueCatalogDatabase.Builder
+    .create(self, "glue_catalog_database")
+    .name("lab1-db")
+    .locationUri(s"s3://${s3Bucket.getBucket}/data")
     .build()
 
   private val _: GlueCrawler = GlueCrawler.Builder
@@ -138,7 +146,7 @@ final class SimpleDataLake(scope: Construct, id: String) extends TerraformStack(
     .name("lab1-crawler")
     .s3Target(List(glueCrawlerS3Target).asJava)
     .role(iamGlueRole.getId)
-    .databaseName("lab1-db")
+    .databaseName(glueCatalogDatabase.getName)
     .tablePrefix("movies_")
     .build()
 
@@ -154,6 +162,7 @@ final class SimpleDataLake(scope: Construct, id: String) extends TerraformStack(
       .resultConfiguration(athenaWorkgroupConfigurationResultConfiguration)
       .build()
     )
+    .forceDestroy(true)
     .build()
 
   private val _: AthenaNamedQuery = AthenaNamedQuery.Builder
@@ -167,7 +176,7 @@ final class SimpleDataLake(scope: Construct, id: String) extends TerraformStack(
 }
 
 // saml2aws login
-// sbt "cdktf/runMain io.github.mvillafuertem.data.lake.cdktf.SimpleDataLake"
+// sbt "cdktf/runMain io.github.mvillafuertem.spark.cdktf.data.lake.SimpleDataLake"
 // yarn --cwd modules/cdktf/ planLake
 // yarn --cwd modules/cdktf/ applyLake
 // yarn --cwd modules/cdktf/ destroyLake
