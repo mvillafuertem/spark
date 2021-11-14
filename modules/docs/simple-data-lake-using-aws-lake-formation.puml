@@ -1,0 +1,34 @@
+@startuml
+
+!pragma layout smetana
+!define STDLIB https://raw.githubusercontent.com/plantuml/plantuml-stdlib/master
+!include STDLIB/awslib/AWSCommon.puml
+!include STDLIB/awslib/AWSSimplified.puml
+!include STDLIB/awslib/General/all.puml
+!include STDLIB/awslib/GroupIcons/all.puml
+!include STDLIB/awslib/Storage/all.puml
+!include STDLIB/awslib/Analytics/all.puml
+
+skinparam linetype polyline
+skinparam rectangle<<awslakeformation>> {
+    BorderColor #6A40C1
+}
+
+rectangle awscloud <<awscloud>> as "<color:AWS_COLOR><$Cloudalt></color>" {
+
+    SimpleStorageService(moviesCollection, "Movies Collection", "")
+    User(dataAnalyst, "Data Analyst", "")
+    Athena(athena, "Amazon Athena", "")
+    Glue(glue, "AWS Glue", "")
+
+    rectangle awslakeformation <<awslakeformation>> as "<color:#6A40C1><$LakeFormation></color> AWS Lake Formation" {
+        LakeFormationDataLake(lakeFormationDataLake, "Movies Collection Data Lake", "")
+    }
+    moviesCollection -r-> glue
+    glue -r-> lakeFormationDataLake
+    athena -> lakeFormationDataLake
+    dataAnalyst -d-> athena : Analyze
+
+}
+
+@enduml

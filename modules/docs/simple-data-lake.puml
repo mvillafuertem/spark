@@ -18,7 +18,11 @@ skinparam rectangle<<csv>> {
     BackgroundColor white
 }
 
-rectangle awscloud <<awscloud>> as "<color:AWS_COLOR><$Cloudalt></color> <color:grey>AWS CLOUD</color>" {
+skinparam rectangle<<awsglue>> {
+    BorderColor #6A40C1
+}
+
+rectangle awscloud <<awscloud>> as "<color:AWS_COLOR><$Cloudalt></color>" {
 
     OFF_CSV_FILE(csv,CSV, rectangle) <<csv>>
     SimpleStorageService(s3DataLakeSource, "S3 Data Lake Source", "")
