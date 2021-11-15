@@ -299,15 +299,15 @@ class SimpleDataLakeUsingAWSLakeFormation(scope: Construct, id: String) extends 
     )
     .build()
 
-  imports.aws.glue.GlueJob.Builder
-    .create(self, "")
-    .name("csv_to_parquet")
-    .roleArn(iamGlueRole.getArn)
-    .command(imports.aws.glue.GlueJobCommand.builder()
-    .scriptLocation("")
-      .build())
-    .defaultArguments(Map("--job-language" -> "scala").asJava)
-    .build()
+//  imports.aws.glue.GlueJob.Builder
+//    .create(self, "")
+//    .name("csv_to_parquet")
+//    .roleArn(iamGlueRole.getArn)
+//    .command(imports.aws.glue.GlueJobCommand.builder()
+//    .scriptLocation("")
+//      .build())
+//    .defaultArguments(Map("--job-language" -> "scala").asJava)
+//    .build()
 
 //  resource "aws_cloudwatch_log_group" "example" {
 //    name              = "example"
