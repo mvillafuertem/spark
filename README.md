@@ -141,4 +141,4 @@ molecule destroy
 #### Links
 https://www.akbaribrahim.com/managing-multiple-python-versions-with-pyenv/
 https://www.akbaribrahim.com/managing-python-virtual-environments-with-pyenv-virtualenv/
-
+https://zacks.one/aws-cloud-architecting/

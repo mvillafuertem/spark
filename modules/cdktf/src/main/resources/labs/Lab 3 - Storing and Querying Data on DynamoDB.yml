@@ -1,0 +1,308 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Big Data on AWS - Lab 3 - Storing and Querying Data on DynamoDB
+Parameters:
+  LabVPCCIDR:
+    Description: CIDR Block for Lab VPC
+    Type: String
+    Default: 10.0.0.0/16
+    AllowedValues:
+      - 10.0.0.0/16
+  LabVPCPublicSubnetCIDR:
+    Description: Lab VPC Public Subnet
+    Type: String
+    Default: 10.0.10.0/24
+    AllowedValues:
+      - 10.0.10.0/24
+  EmrRelease:
+    Type: String
+    Description: The current EMR AMI version to use for labs.
+    #Default: emr-5.0.3
+    Default: emr-4.7.2
+  SSHLocation:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: "9"
+    MaxLength: "18"
+    Default: 10.0.0.0/16
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x
+  # Linux image parameter
+  AmazonLinuxAMIID:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn-ami-hvm-x86_64-gp2
+
+Resources:
+  EMREC2DefaultRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceforEC2Role'
+      Path: /
+  EMREC2InstanceProfile:
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EMREC2DefaultRole
+    Type: 'AWS::IAM::InstanceProfile'
+  EMRDefaultRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: elasticmapreduce.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole'
+      Path: /
+  LabVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Ref LabVPCCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: VPC
+          Value: Lab VPC
+        - Key: Name
+          Value: Lab VPC
+  LabVPCInternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    DependsOn: LabVPC
+  LabVPCAttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    DependsOn:
+      - LabVPC
+      - LabVPCInternetGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      InternetGatewayId: !Ref LabVPCInternetGateway
+  LabVPCPublicSubnet:
+    Type: 'AWS::EC2::Subnet'
+    DependsOn: LabVPCAttachGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      CidrBlock: !Ref LabVPCPublicSubnetCIDR
+      AvailabilityZone: !Select
+        - '0'
+        - !GetAZs ''
+      Tags:
+        - Key: Name
+          Value: Lab VPC Public Subnet
+  LabVPCPublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    DependsOn:
+      - LabVPC
+      - LabVPCAttachGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      Tags:
+        - Key: Name
+          Value: Lab VPC Public Route Table
+  DevPublicRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn:
+      - LabVPCPublicRouteTable
+      - LabVPCAttachGateway
+    Properties:
+      RouteTableId: !Ref LabVPCPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref LabVPCInternetGateway
+  DevPublicSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    DependsOn:
+      - LabVPCPublicRouteTable
+      - LabVPCPublicSubnet
+      - LabVPCAttachGateway
+    Properties:
+      SubnetId: !Ref LabVPCPublicSubnet
+      RouteTableId: !Ref LabVPCPublicRouteTable
+  ElasticMapReduceMasterSSH:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Enable SSH access via port 22 for EMR master node
+      VpcId: !Ref LabVPC
+      Tags:
+        - Key: Name
+          Value: ElasticMapReduce-master-SSH
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref LabVPCCIDR
+  labcluster:
+    Type: 'AWS::EMR::Cluster'
+    DependsOn:
+      - waitCondition
+    Properties:
+      Applications:
+        - Name: Hive
+      Instances:
+        AdditionalMasterSecurityGroups:
+          - !Ref ElasticMapReduceMasterSSH
+        MasterInstanceGroup:
+          InstanceCount: 1
+          InstanceType: m4.large
+          Name: Master
+        CoreInstanceGroup:
+          InstanceCount: 2
+          InstanceType: m4.large
+          Name: Core
+        Ec2SubnetId: !Ref LabVPCPublicSubnet
+        Ec2KeyName: EMRKey
+      Name: labcluster
+      JobFlowRole: !Ref EMREC2InstanceProfile
+      ServiceRole: !Ref EMRDefaultRole
+      ReleaseLabel: !Ref EmrRelease
+      VisibleToAllUsers: true
+
+### Command Host Configuration ###
+  CommandHostSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !Ref LabVPC
+      GroupDescription: Enable HTTP access via port 80
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHLocation
+
+  CommandHostRole:
+      Type: AWS::IAM::Role
+      Properties:
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+        AssumeRolePolicyDocument:
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service: ["ec2.amazonaws.com"]
+              Action: ["sts:AssumeRole"]
+        Path: /
+        Policies:
+          - PolicyName: root
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - ec2:CreateKeyPair
+                    - ec2:DeleteKeyPair
+                  Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:key-pair/EMRKey
+                - Effect: Allow
+                  Action:
+                    - elasticmapreduce:List*
+                    - elasticmapreduce:Describe*
+                  Resource: "*"
+
+  CommandHostInstProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref CommandHostRole
+
+  CommandHost:
+    Type: AWS::EC2::Instance
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT5M
+    Properties:
+      IamInstanceProfile: !Ref CommandHostInstProfile
+      ImageId: !Ref AmazonLinuxAMIID
+      InstanceType: t3.micro
+      NetworkInterfaces:
+        - DeviceIndex: "0"
+          AssociatePublicIpAddress: true
+          SubnetId: !Ref LabVPCPublicSubnet
+          GroupSet:
+            - !Ref CommandHostSG
+      Tags:
+        - Key: Name
+          Value: CommandHost
+      UserData:
+        "Fn::Base64": !Sub |
+          #!/bin/bash -ex
+          # Installing updates and jq
+          yum update -y
+          yum -y install jq
+          
+          ## Deleting existing EMRKey pair if it exists and creating new one.
+          if ($(aws ec2 create-key-pair --key-name EMRKey --region ${AWS::Region} --query 'KeyMaterial' --output text > /home/ec2-user/EMRKey.pem)); then 
+            echo "Good"
+          elif ($(aws ec2 delete-key-pair --key-name EMRKey --region ${AWS::Region})); then 
+              echo "Deleted" 
+              aws ec2 create-key-pair --key-name EMRKey --region ${AWS::Region} --query 'KeyMaterial' --output text > /home/ec2-user/EMRKey.pem
+              echo "Redone the key"
+          fi
+
+          # Changing the key file to read permission
+          chmod +r /home/ec2-user/EMRKey.pem &&
+
+          # Checking ssm-user exist in the EC2 instance. If exists, the condition will pass else will create ssm-user
+          if id -u "ssm-user" >/dev/null 2>&1; then 
+            echo 'ssm-user already exists' 
+          else 
+            useradd ssm-user -m -U
+          fi
+
+          # Updating aws configuration for ssm-user
+          mkdir /home/ssm-user/.aws &&
+          echo "[default]" > /home/ssm-user/.aws/config &&
+          echo "region = ${AWS::Region}" >> /home/ssm-user/.aws/config &&
+          cp /home/ec2-user/EMRKey.pem /home/ssm-user/ &&
+          chmod +r /home/ssm-user/EMRKey.pem
+
+          # Starting wait condition - this delay is introduced to make sure emr cluster gets the correct key pair.
+          /opt/aws/bin/cfn-signal -e $? "${waitConditionHandle}"
+          /opt/aws/bin/cfn-signal --stack ${AWS::StackName} --region ${AWS::Region} --resource CommandHost -e 0
+          
+
+  waitConditionHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+    Properties: {}
+
+  waitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: CommandHost
+    Properties: 
+      Count: 0
+      Handle: !Ref 'waitConditionHandle'
+      Timeout: '240'
+
+#ReadOnly configuration
+  ReadOnlyGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+  
+  GroupAssignment:
+    Type: AWS::IAM::UserToGroupAddition
+    DependsOn: ReadOnlyGroup
+    Properties:
+      GroupName: !Ref ReadOnlyGroup
+      Users:
+        - awsstudent
+
+Outputs:
+  Region:
+    Description: Lab Region
+    Value: !Ref AWS::Region
+  CommandHostSessionManagementUrl:
+    Description: The URL to the Session Management Console for CommandHost
+    Value: !Sub https://${AWS::Region}.console.aws.amazon.com/systems-manager/session-manager/${CommandHost}?region=${AWS::Region}

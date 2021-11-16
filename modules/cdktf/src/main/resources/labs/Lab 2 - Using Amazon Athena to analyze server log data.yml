@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Big Data and ML on AWS - Lab 2 - Using Amazon Athena to analyze server log data
+
+Resources:
+  athenabucket:
+    Type: AWS::S3::Bucket
+
+  LambdaUpdateWorkgroup:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: !Sub |
+          import json, boto3, os
+          def lambda_handler(event, context):
+            client = boto3.client('athena')
+            response = client.update_work_group(
+              WorkGroup='primary',
+              ConfigurationUpdates={
+                'EnforceWorkGroupConfiguration': True,
+                'ResultConfigurationUpdates': {
+                  'OutputLocation': 's3://${athenabucket}',
+                  'RemoveOutputLocation': False,
+                },
+                'PublishCloudWatchMetricsEnabled': True,
+                'RequesterPaysEnabled': False
+              },
+              State='ENABLED'
+            )
+            curlCMD = "curl -X PUT -H 'Content-Type:' --data-binary '{\"Status\" : \"SUCCESS\",\"Reason\" : \"Configuration Complete\",\"PhysicalResourceId\" : \"LambdaPrepAutoRemediation\",\"StackId\" : \"" + event["StackId"] + "\",\"RequestId\" : \"" + event["RequestId"] + "\",\"LogicalResourceId\" : \"" + event["LogicalResourceId"] + "\",\"UniqueId\" : \"UpdateWorkgroupPassed1\"}' \"" + event["ResponseURL"] + "\""
+            print(curlCMD)
+            try:
+              os.system(curlCMD)
+            except Exception as e:
+              print('Error: ' + str(e))
+      Handler: 'index.lambda_handler'
+      Role: !GetAtt 'LambdaUpdateWorkgroupRole.Arn'
+      Runtime: python3.7
+      Timeout: 300
+      MemorySize: 128
+
+  LambdaUpdateWorkgroupTrigger:
+    Type: 'Custom::LambdaUpdateWorkgroupTrigger'
+    DependsOn:
+      - athenabucket
+      - LambdaUpdateWorkgroupRole
+    Properties:
+      ServiceToken: !GetAtt LambdaUpdateWorkgroup.Arn
+
+  LambdaUpdateWorkgroupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: customLambdaPol
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'cloudwatch:describe*'
+                  - 'cloudwatch:Get*'
+                  - 'cloudwatch:List*'
+                  - 'cloudwatch:PutMetricData'
+                  - 'logs:CreateLogDelivery'
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:Describe*'
+                  - 'logs:Get*'
+                  - 'logs:List*'
+                  - 'logs:PutLogEvents'
+                  - 'athena:Get*'
+                  - 'athena:List*'
+                  - 'athena:UpdateWorkGroup'
+                Resource: '*'
+
+Outputs:
+  Region:
+    Description: Lab Region
+    Value: !Ref AWS::Region
