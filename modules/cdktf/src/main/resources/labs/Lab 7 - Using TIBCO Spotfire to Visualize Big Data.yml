@@ -1,0 +1,435 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Big Data on AWS - Lab 7 - Using TIBCO Spotfire to Visualize Big Data
+
+Parameters:
+  AdministratorPassword:
+    Type: String
+    NoEcho: true
+
+  RedshiftDatabase:
+    Description: The name of the first database to be created when the cluster is created
+    Type: String
+    Default: lab
+    AllowedPattern: ([a-z]|[0-9])+
+
+  RedshiftUser:
+    Type: String
+    Description: The user name that is associated with the administrative user account for the Redshift cluster that is being created.
+    Default: admin
+
+  RedshiftPassword:
+    Type: String
+    Description: The password that is associated with the administrative user account for the Redshift cluster that is being created.
+    Default: Redshift123
+    NoEcho: true
+
+  RedshiftPort:
+    Type: Number
+    Description: The port number on which the Redshift cluster accepts incoming connections.
+    Default: 5439
+
+  WindowsAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-windows-latest/Windows_Server-2019-English-Full-Base
+
+  SSHLocation:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: "9"
+    MaxLength: "18"
+    Default: 10.0.0.0/16
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x
+
+  AmazonLinuxAMIID:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn-ami-hvm-x86_64-gp2
+
+  S3PathPrefix:
+    Type: String
+    Description: 'The path prefix where lab resources are stored'
+    #Default: courses/ILT-TF-200-BIGDAT/v3.9.10/lab-7-spotfire
+    Default: "courses/ILT-TF-200-BIGDAT/v3.9.13/lab-7-spotfire"
+
+  S3ResourceBucket:
+    Type: String
+    Description: 'S3 Bucket of were to pull lab resources from'
+    Default: '-tcprod'
+
+Resources:
+  LabVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: Lab VPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref LabVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref LabVPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs
+      Tags:
+        - Key: Name
+          Value: Public Subnet
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref LabVPC
+      Tags:
+        - Key: Name
+          Value: Public Route Table
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  RedshiftCluster:
+    Type: AWS::Redshift::Cluster
+    Properties:
+      MasterUsername: !Ref RedshiftUser
+      MasterUserPassword: !Ref RedshiftPassword
+      NodeType: dc2.large
+      ClusterType: single-node
+      ClusterParameterGroupName: !Ref RedshiftClusterParameterGroup
+      ClusterSubnetGroupName: !Ref RedshiftClusterSubnetGroup
+      DBName: !Ref RedshiftDatabase
+      VpcSecurityGroupIds:
+        - !Ref RedshiftSecurityGroup
+      PubliclyAccessible: true
+      Port: !Ref RedshiftPort
+      IamRoles:
+        - !GetAtt RedshiftRole.Arn
+
+  RedshiftClusterParameterGroup:
+    Type: AWS::Redshift::ClusterParameterGroup
+    Properties:
+      Description: Cluster Parameter Group
+      ParameterGroupFamily: redshift-1.0
+      Parameters:
+        - ParameterName: enable_user_activity_logging
+          ParameterValue: "true"
+
+  RedshiftClusterSubnetGroup:
+    Type: AWS::Redshift::ClusterSubnetGroup
+    Properties:
+      Description: Cluster Subnet Group
+      SubnetIds:
+        - !Ref PublicSubnet
+
+  RedshiftRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - redshift.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+  RedshiftSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for the Redshift cluster
+      VpcId: !Ref LabVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5439
+          ToPort: 5439
+          CidrIp: !Ref SSHLocation
+
+  TibcoSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for the Tibco instance
+      VpcId: !Ref LabVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: 0.0.0.0/0
+
+  TibcoInstance:
+    Type: AWS::EC2::Instance
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT20M
+    DependsOn:
+      - PublicSubnetRouteTableAssociation
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            msi:
+              redshift-odbc: https://s3.amazonaws.com/redshift-downloads/drivers/odbc/1.4.14.1000/AmazonRedshiftODBC64-1.4.14.1000.msi
+          files:
+            C:\cfn\temp\psqlodbc-setup.exe:
+              source: https://aws-tc-largeobjects.s3.amazonaws.com/AWS-200-BIG/v3.1/lab-7-spotfire/nov/psqlodbc-setup.exe
+            C:\cfn\temp\SpotfireSetup.exe:
+              source: https://aws-tc-largeobjects.s3.amazonaws.com/AWS-200-BIG/v3.1/lab-7-spotfire/nov/SpotfireSetup.exe
+            C:\cfn\temp\load-data.sql:
+              source: !Sub https://${AWS::Region}${S3ResourceBucket}.s3.${AWS::Region}.amazonaws.com/${S3PathPrefix}/scripts/load-data.sql
+            C:\cfn\temp\load-data.ps1:
+              content: !Sub |
+                try {
+                  $exitCode = 0
+
+                  $rsLoadDataScript = Get-Content C:\cfn\temp\load-data.sql -Raw
+                  $rsLoadDataScript = $rsLoadDataScript -replace "redshift_role_arn", "${RedshiftRole.Arn}"
+
+                  $rsConnection=New-Object System.Data.Odbc.OdbcConnection
+                  $rsConnection.ConnectionString="Driver={Amazon Redshift (x64)}; Server=${RedshiftCluster.Endpoint.Address}; Port=${RedshiftPort}; Database=${RedshiftDatabase}; UID=${RedshiftUser}; PWD=${RedshiftPassword};"
+                  $rsConnection.Open()
+
+                  $rsCommand=New-Object System.Data.Odbc.OdbcCommand
+                  $rsCommand.CommandText=$rsLoadDataScript
+                  $rsCommand.Connection=$rsConnection
+                  $rsCommand.ExecuteNonQuery()
+                } catch {
+                  Write-Host "An error occurred while attempting to initialize Amazon Redshift."
+                  $exitCode = 1
+                } finally {
+                  if ($rsConnection.State -eq "Open") {
+                    $rsConnection.Close()
+                  }
+                  exit $exitCode
+                }
+          commands:
+            1-Change-Password:
+              command: !Sub net user Administrator "${AdministratorPassword}"
+              waitAfterCompletion: 0
+            2-Load-Data:
+              command: powershell.exe -File C:\cfn\temp\load-data.ps1
+              waitAfterCompletion: 0
+            3-Install-PostgreSQL-Driver:
+              command: C:\cfn\temp\psqlodbc-setup.exe /s
+              waitAfterCompletion: 0
+            4-Install-Spotfire:
+              command: C:\cfn\temp\SpotfireSetup.exe /s /v /qn
+              waitAfterCompletion: 0
+    Properties:
+      ImageId: !Ref WindowsAmiId
+      InstanceType: t3.medium
+      SecurityGroupIds:
+        - !Ref TibcoSecurityGroup
+      SubnetId: !Ref PublicSubnet
+      Tags:
+        - Key: Name
+          Value: Tibco
+      UserData:
+        Fn::Base64: !Sub |
+          <script>
+            cfn-init.exe -v --stack ${AWS::StackName} --region ${AWS::Region} --resource TibcoInstance
+            cfn-signal.exe --stack ${AWS::StackName} --region ${AWS::Region} --resource TibcoInstance --exit-code %ERRORLEVEL%
+          </script>
+
+  ### Command Host Configuration ###
+  CommandHostSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !Ref LabVPC
+      GroupDescription: Enable HTTP access via port 80
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHLocation
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  CommandHostRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: ["ec2.amazonaws.com"]
+            Action: ["sts:AssumeRole"]
+      Path: /
+
+  CommandHostInstProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref CommandHostRole
+
+  CommandHost:
+    Type: AWS::EC2::Instance
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT15M
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          default:
+            - Dependencies
+            - AWS
+            - Docker
+            - Ant
+            - Guacamole
+            - Java
+        Dependencies:
+          commands:
+            1-Remove-Yum-Packages:
+              command: yum remove -y java-1.7.0-openjdk
+            2-Install-Yum-Packages:
+              command: yum install -y docker java-1.8.0-openjdk java-1.8.0-openjdk-devel gcc openssl-devel bzip2-devel libffi-devel make tar wget
+            3-Update-Yum-Packages:
+              command: yum update -y
+          services:
+            sysvinit:
+              docker:
+                enabled: true
+                ensureRunning: true
+        AWS:
+          commands:
+            1-create-ssm-user:
+              command: if id -u "ssm-user" >/dev/null 2>&1; then echo 'ssm-user already exists'; else useradd ssm-user -m -U; fi
+              ignoreErrors: false
+            2-AWS-Default-Region:
+              command: !Sub sudo -u ssm-user aws configure set default.region ${AWS::Region}
+              waitAfterCompletion: 0
+
+        Ant:
+          sources:
+            /home/ssm-user/apache-ant-1.10.3: https://aws-tc-largeobjects.s3.amazonaws.com/AWS-200-DEV/v3.4/binaries/packages/apache-ant-1.10.3-bin.zip
+          commands:
+            1-Ant-Ownership:
+              command: chown -R ssm-user:ssm-user /home/ssm-user/apache-ant-1.10.3
+            2-Ant-Path:
+              command: echo 'PATH=$PATH:/home/ssm-user/apache-ant-1.10.3/bin' >> /home/ssm-user/.bash_profile
+            3-Ant-Home:
+              command: echo 'ANT_HOME=/home/ssm-user/apache-ant-1.10.3' >> /home/ssm-user/.bash_profile
+            4-Ant-Export:
+              command: echo 'export ANT_HOME' >> /home/ssm-user/.bash_profile
+        Docker:
+          commands:
+            1-Add-User-To-Group:
+              command: usermod -a -G docker ssm-user
+        Guacamole:
+          files:
+            /home/ssm-user/guacamole-home/guacamole.properties:
+              content: |
+                user-mapping: /guacamole-home/user-mapping.xml
+            /home/ssm-user/guacamole-home/user-mapping.xml:
+              content: !Sub
+                - |
+                  <user-mapping>
+                    <authorize username="student" password="${EscapedPassword}">
+                      <protocol>rdp</protocol>
+                      <param name="hostname">${TibcoInstance.PrivateIp}</param>
+                      <param name="username">Administrator</param>
+                      <param name="password">${EscapedPassword}</param>
+                      <param name="security">any</param>
+                      <param name="ignore-cert">true</param>
+                    </authorize>
+                  </user-mapping>
+                - EscapedPassword: !Join
+                    - "&lt;"
+                    - !Split
+                      - "<"
+                      - !Join
+                        - "&amp;"
+                        - !Split
+                          - "&"
+                          - !Ref AdministratorPassword
+          commands:
+            1-Run-Guacd:
+              command: docker run --name guacd -d guacamole/guacd:1.3.0
+            2-Run-Guacamole:
+              command: docker run --name guacamole --link guacd:guacd -v /home/ssm-user/guacamole-home:/guacamole-home -e GUACAMOLE_HOME=/guacamole-home -d -p 80:8080 guacamole/guacamole:1.3.0
+        Java:
+          commands:
+            1-Java-Home:
+              command: echo 'JAVA_HOME=/usr' >> /home/ssm-user/.bash_profile
+            2-Java-Export:
+              command: echo 'export JAVA_HOME' >> /home/ssm-user/.bash_profile
+
+    Properties:
+      IamInstanceProfile: !Ref CommandHostInstProfile
+      ImageId: !Ref AmazonLinuxAMIID
+      InstanceType: t3.medium
+      NetworkInterfaces:
+        - DeviceIndex: "0"
+          AssociatePublicIpAddress: true
+          SubnetId: !Ref PublicSubnet
+          GroupSet:
+            - !Ref CommandHostSG
+      Tags:
+        - Key: Name
+          Value: Guacamole_Host
+      UserData:
+        "Fn::Base64": !Sub |
+          #!/bin/bash -xe
+          yum update -y aws-cfn-bootstrap
+          /opt/aws/bin/cfn-init --stack ${AWS::StackName} --region ${AWS::Region} --resource CommandHost
+          /opt/aws/bin/cfn-signal --stack ${AWS::StackName} --region ${AWS::Region} --resource CommandHost --exit-code $?
+
+
+
+  ReadOnlyGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+
+  GroupAssignment:
+    Type: AWS::IAM::UserToGroupAddition
+    Properties:
+      GroupName: !Ref ReadOnlyGroup
+      Users:
+        - awsstudent
+
+Outputs:
+  AdministratorPassword:
+    Value: !Ref AdministratorPassword
+
+  RedshiftEndpoint:
+    Description: The Redshift Endpoint
+    Value: !Sub ${RedshiftCluster.Endpoint.Address}:5439
+
+  Region:
+    Description: The Lab Region
+    Value: !Ref AWS::Region
+
+  GuacamoleLink:
+    Value: !Sub http://${CommandHost.PublicIp}/guacamole

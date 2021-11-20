@@ -335,8 +335,8 @@ Resources:
       Role: !GetAtt 'CreateInstanceProfileRole.Arn'
       Runtime: nodejs12.x
       Timeout: 90
-  
-      
+
+
 
   LambdaVPCRole:
     Type: 'AWS::IAM::Role'
@@ -372,7 +372,7 @@ Resources:
                   - 'ec2:DescribeVpcs'
                 Resource:
                   - '*'
-#Lambda function to create Default VPC
+  #Lambda function to create Default VPC
   LambdaCreateDefaultVPC:
     Type: 'AWS::Lambda::Function'
     Properties:
@@ -456,7 +456,7 @@ Resources:
       ServiceToken: !GetAtt LambdaCreateDefaultVPC.Arn
       Input: 40
 
-### Command Host Configuration ###
+  ### Command Host Configuration ###
   CommandHostSG:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
@@ -469,32 +469,32 @@ Resources:
           CidrIp: !Ref SSHLocation
 
   CommandHostRole:
-      Type: AWS::IAM::Role
-      Properties:
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
-        AssumeRolePolicyDocument:
-          Statement:
-            - Effect: "Allow"
-              Principal:
-                Service: ["ec2.amazonaws.com"]
-              Action: ["sts:AssumeRole"]
-        Path: /
-        Policies:
-          - PolicyName: root
-            PolicyDocument:
-              Version: '2012-10-17'
-              Statement:
-                - Effect: Allow
-                  Action:
-                    - ec2:CreateKeyPair
-                    - ec2:DeleteKeyPair
-                  Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:key-pair/EMRKey
-                - Effect: Allow
-                  Action:
-                    - elasticmapreduce:List*
-                    - elasticmapreduce:Describe*
-                  Resource: "*"
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: ["ec2.amazonaws.com"]
+            Action: ["sts:AssumeRole"]
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:CreateKeyPair
+                  - ec2:DeleteKeyPair
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:key-pair/EMRKey
+              - Effect: Allow
+                Action:
+                  - elasticmapreduce:List*
+                  - elasticmapreduce:Describe*
+                Resource: "*"
 
   CommandHostInstProfile:
     Type: AWS::IAM::InstanceProfile
@@ -524,7 +524,7 @@ Resources:
           # Installing updates and jq
           yum update -y
           yum -y install jq
-          
+
           ## Deleting existing EMRKey pair if it exists and creating new one.
           if ($(aws ec2 create-key-pair --key-name EMRKey --region ${AWS::Region} --query 'KeyMaterial' --output text > /home/ec2-user/EMRKey.pem)); then 
             echo "Good"
@@ -554,7 +554,7 @@ Resources:
           # Starting wait condition - this delay is introduced to make sure emr cluster gets the correct key pair.
           /opt/aws/bin/cfn-signal -e $? "${waitConditionHandle}"
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource CommandHost --region ${AWS::Region}
-          
+
 
   waitConditionHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
@@ -563,18 +563,18 @@ Resources:
   waitCondition:
     Type: AWS::CloudFormation::WaitCondition
     DependsOn: CommandHost
-    Properties: 
+    Properties:
       Count: 0
       Handle: !Ref 'waitConditionHandle'
       Timeout: '120'
 
-#ReadOnly configuration
+  #ReadOnly configuration
   ReadOnlyGroup:
     Type: AWS::IAM::Group
     Properties:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/ReadOnlyAccess
-  
+
   GroupAssignment:
     Type: AWS::IAM::UserToGroupAddition
     DependsOn: ReadOnlyGroup
