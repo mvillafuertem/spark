@@ -1,12 +1,11 @@
-package io.github.mvillafuertem.spark.cdktf.emr
+package io.github.mvillafuertem.spark.cdktf.bastion
 
 import com.hashicorp.cdktf.{TerraformOutput, TerraformStack}
 import imports.aws._
-import imports.aws.budgets.{ BudgetsBudget, BudgetsBudgetCostTypes, BudgetsBudgetNotification }
-import imports.aws.ec2.{ Instance, KeyPair }
-import imports.aws.vpc.{ DataAwsVpc, NetworkInterfaceSgAttachment, SecurityGroup, SecurityGroupRule }
-import io.github.mvillafuertem.spark.cdktf.emr.CdktfStack.CdktfStackConfiguration
-import io.github.mvillafuertem.spark.cdktf.emr.CdktfBastion
+import imports.aws.budgets.{BudgetsBudget, BudgetsBudgetCostTypes, BudgetsBudgetNotification}
+import imports.aws.ec2.{Instance, KeyPair}
+import imports.aws.vpc.{DataAwsVpc, NetworkInterfaceSgAttachment, SecurityGroup, SecurityGroupRule}
+import io.github.mvillafuertem.spark.cdktf.bastion.CdktfStack.CdktfStackConfiguration
 import software.constructs.Construct
 
 import scala.jdk.CollectionConverters._

@@ -2,7 +2,8 @@
   "language": "java",
   "app": "sbt cdktf/run",
   "terraformProviders": [
-    "aws@~> 3.63.0"
+    "aws@~> 3.63.0",
+    "hashicorp/archive@~> 2.2.0"
   ],
   "terraformModules": [],
   "context": {},

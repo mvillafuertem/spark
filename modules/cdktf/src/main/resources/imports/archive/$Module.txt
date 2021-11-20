@@ -1,0 +1,8 @@
+hashicorp_archive.ArchiveProvider=imports.archive.ArchiveProvider
+hashicorp_archive.ArchiveProviderConfig=imports.archive.ArchiveProviderConfig
+hashicorp_archive.DataArchiveFile=imports.archive.DataArchiveFile
+hashicorp_archive.DataArchiveFileConfig=imports.archive.DataArchiveFileConfig
+hashicorp_archive.DataArchiveFileSource=imports.archive.DataArchiveFileSource
+hashicorp_archive.File=imports.archive.File
+hashicorp_archive.FileConfig=imports.archive.FileConfig
+hashicorp_archive.FileSource=imports.archive.FileSource

@@ -46,7 +46,7 @@ jobs:
         run: |
           yarn --cwd modules/cdktf/ install && \
           yarn --cwd modules/cdktf/ fetch && \
-          sbt "cdktf/runMain io.github.mvillafuertem.spark.cdktf.emr.CdktfApp" && \
+          sbt "cdktf/runMain io.github.mvillafuertem.spark.cdktf.bastion.CdktfApp" && \
           cat modules/cdktf/src/main/resources/stacks/cdktf-stack/cdk.tf.json && \
           cat modules/cdktf/src/main/resources/stacks/cdktf-state/cdk.tf.json
           sbt "cdktf/runMain io.github.mvillafuertem.spark.cdktf.data.lake.SimpleDataLake" && \

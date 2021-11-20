@@ -1,12 +1,12 @@
-package io.github.mvillafuertem.spark.cdktf.emr
+package io.github.mvillafuertem.spark.cdktf.bastion
 
 import com.hashicorp.cdktf.{TerraformOutput, TerraformResourceLifecycle}
 import imports.aws.auto_scaling.AutoscalingGroup
 import imports.aws.data_sources.LaunchConfiguration
 import imports.aws.ec2.KeyPair
 import imports.aws.elb._
-import imports.aws.vpc.{ DataAwsVpc, SecurityGroup, SecurityGroupRule, Subnet }
-import io.github.mvillafuertem.spark.cdktf.emr.CdktfStack.CdktfStackConfiguration
+import imports.aws.vpc.{DataAwsVpc, SecurityGroup, SecurityGroupRule, Subnet}
+import io.github.mvillafuertem.spark.cdktf.bastion.CdktfStack.CdktfStackConfiguration
 import software.constructs.Construct
 
 import scala.jdk.CollectionConverters._
