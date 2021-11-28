@@ -54,6 +54,12 @@ Spark is a project with many proof of concept modules...
     <img width="600" src="https://raw.githubusercontent.com/mvillafuertem/spark/master/modules/docs/simple-data-lake-using-aws-lake-formation.svg" alt="simple-data-lake-using-aws-lake-formation"/>
 </p>
 
+## Loading Real-time Data Into Amazon Redshift Cluster
+
+<p align="center">
+    <img width="600" src="https://raw.githubusercontent.com/mvillafuertem/spark/master/modules/docs/loading-real-time-data-into-amazon-redshift-cluster.svg" alt="simple-data-lake-using-aws-lake-formation"/>
+</p>
+
 ## Useful commands
 
 
