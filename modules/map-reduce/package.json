@@ -9,9 +9,6 @@
     "planProcessingServerLogsWithHive": "cd ./src/main/resources/stacks/processing-server-logs-with-hive && terraform init && terraform plan"
   },
   "dependencies": {},
-  "devDependencies": {
-    "cdktf-cli": "^0.7.0",
-    "@types/node": "14.17.27"
-  },
+  "devDependencies": {},
   "private": true
 }
