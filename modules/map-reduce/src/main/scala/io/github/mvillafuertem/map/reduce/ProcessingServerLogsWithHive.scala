@@ -1,10 +1,10 @@
-package io.github.mvillafuertem.spark.cdktf.emr
+package io.github.mvillafuertem.map.reduce
 
 import com.hashicorp.cdktf
-import com.hashicorp.cdktf.{ AppOptions, TerraformOutput, TerraformStack }
+import com.hashicorp.cdktf.{AppOptions, TerraformOutput, TerraformStack}
 import imports.archive.DataArchiveFile
 import imports.aws.AwsProvider
-import imports.aws.ec2.{ DataAwsAmi, DataAwsAmiFilter, Instance, InstanceNetworkInterface }
+import imports.aws.ec2.{DataAwsAmi, DataAwsAmiFilter, Instance, InstanceNetworkInterface}
 import imports.aws.iam._
 import imports.aws.lambda_function.LambdaFunction
 import imports.aws.vpc._
@@ -649,10 +649,10 @@ final class ProcessingServerLogsWithHive(scope: Construct, id: String) extends T
 }
 
 // saml2aws login
-// sbt "cdktf/runMain io.github.mvillafuertem.spark.cdktf.emr.ProcessingServerLogsWithHive"
-// yarn --cwd modules/cdktf/ planProcessingServerLogsWithHive
-// yarn --cwd modules/cdktf/ applyProcessingServerLogsWithHive
-// yarn --cwd modules/cdktf/ destroyProcessingServerLogsWithHive
+// sbt "map-reduce/runMain io.github.mvillafuertem.map.reduce.ProcessingServerLogsWithHive"
+// yarn --cwd modules/map-reduce/ planProcessingServerLogsWithHive
+// yarn --cwd modules/map-reduce/ applyProcessingServerLogsWithHive
+// yarn --cwd modules/map-reduce/ destroyProcessingServerLogsWithHive
 object ProcessingServerLogsWithHive extends App {
 
   private val app: cdktf.App = new cdktf.App(

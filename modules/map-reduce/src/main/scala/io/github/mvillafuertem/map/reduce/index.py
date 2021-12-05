@@ -1,7 +1,8 @@
-import json
 import boto3
-import urllib3
+import json
 import logging
+import urllib3
+
 http = urllib3.PoolManager()
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

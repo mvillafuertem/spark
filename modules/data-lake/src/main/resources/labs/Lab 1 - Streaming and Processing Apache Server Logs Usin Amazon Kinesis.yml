@@ -1,0 +1,376 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Lab 1 -  Streaming and Processing Apache Server Logs Usin Amazon Kinesis
+Parameters:
+  LabVPCCIDR:
+    Description: CIDR Block for Lab VPC
+    Type: String
+    Default: 10.0.0.0/16
+    AllowedValues:
+      - 10.0.0.0/16
+
+  LabVPCPublicSubnetCIDR:
+    Description: Lab VPC Public Subnet
+    Type: String
+    Default: 10.0.10.0/24
+    AllowedValues:
+      - 10.0.10.0/24
+
+  AWSAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+
+  S3PathPrefix:
+    Type: String
+    Description: 'The path prefix where lab resources are stored'
+    Default: "courses/ILT-TF-200-BIGDAT/v3.9.13/lab-1-kinesis"
+    #Default: courses/ILT-TF-200-BIGDML/v1.0.0/lab-1-kinesis
+
+Resources:
+  LabVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Ref LabVPCCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: VPC
+          Value: Lab VPC
+        - Key: Name
+          Value: Lab VPC
+
+  LabVPCInternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    DependsOn: LabVPC
+  LabVPCAttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    DependsOn:
+      - LabVPC
+      - LabVPCInternetGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      InternetGatewayId: !Ref LabVPCInternetGateway
+
+  LabVPCPublicSubnet:
+    Type: 'AWS::EC2::Subnet'
+    DependsOn: LabVPCAttachGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      CidrBlock: !Ref LabVPCPublicSubnetCIDR
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+      Tags:
+        - Key: Name
+          Value: Lab VPC Public Subnet
+
+  LabVPCPublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    DependsOn:
+      - LabVPC
+      - LabVPCAttachGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      Tags:
+        - Key: Name
+          Value: Lab VPC Public Route Table
+
+  DevPublicRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn:
+      - LabVPCPublicRouteTable
+      - LabVPCAttachGateway
+    Properties:
+      RouteTableId: !Ref LabVPCPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref LabVPCInternetGateway
+
+  DevPublicSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    DependsOn:
+      - LabVPCPublicRouteTable
+      - LabVPCPublicSubnet
+      - LabVPCAttachGateway
+    Properties:
+      SubnetId: !Ref LabVPCPublicSubnet
+      RouteTableId: !Ref LabVPCPublicRouteTable
+
+  EC2InstanceSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    DependsOn: LabVPCAttachGateway
+    Properties:
+      GroupDescription: Security Group for EC2 instance
+      VpcId: !Ref LabVPC
+      Tags:
+        - Key: Name
+          Value: EC2InstanceSecurityGroup
+        - Key: InstanceType
+          Value: General
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  EC2InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EC2InstanceEC2TrustAccessRole
+
+  EC2InstanceEC2TrustAccessRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+      Path: /
+  EC2InstancePolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 'ec2:*'
+              - 'logs:*'
+              - 'cloudformation:*'
+              - 's3:*'
+              - 'iam:*'
+            Effect: Allow
+            Resource: '*'
+      PolicyName: EC2InstanceRestrictedAccess
+      Roles:
+        - !Ref EC2InstanceEC2TrustAccessRole
+
+  EC2Instance:
+    Type: 'AWS::EC2::Instance'
+    DependsOn:
+      - LabVPCPublicSubnet
+      - EC2InstanceSecurityGroup
+      - LabVPCAttachGateway
+      - APIGatewayBeaconStream
+    Properties:
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      ImageId: !Ref AWSAmiId
+      InstanceType: t2.small
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: true
+          SubnetId: !Ref LabVPCPublicSubnet
+          GroupSet:
+            - !Ref EC2InstanceSecurityGroup
+      Tags:
+        - Key: Name
+          Value: Lab Setup Instance
+      UserData:
+        'Fn::Base64':
+          !Sub |
+            #!/bin/bash -ex
+            aws s3 cp s3://us-west-2-tcprod/${S3PathPrefix}/scripts/generator.py .
+            sudo yum update -y
+            sudo yum groupinstall "Development Tools" -y
+            sudo yum install numpy -y
+
+            python generator.py https://${APIGatewayBeaconStream}.execute-api.${AWS::Region}.amazonaws.com/example/beacon/stream
+
+            #/opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource EC2Instance --region ${AWS::Region}\
+
+  APIGateway2KinesisRole:
+    Type: 'AWS::IAM::Role'
+    DependsOn:
+      - InputLogStream
+    Properties:
+      RoleName: API_Gateway_Role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: puttokinesisstream
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'kinesis:*'
+                  - 'apigateway:*'
+                Resource:
+                  - !GetAtt
+                    - InputLogStream
+                    - Arn
+        - PolicyName: puttokinesisstream1
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'kinesis:*'
+                  - 'apigateway:*'
+                Resource:
+                  - !Join
+                    - ''
+                    - - 'arn:aws:apigateway:'
+                      - !Ref 'AWS::Region'
+                      - '::/restapis/*'
+
+
+  KinesisAnalyticsRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - kinesisanalytics.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: kinesisaccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: ReadInputStream
+                Effect: Allow
+                Action:
+                  - 'kinesis:DescribeStream'
+                  - 'kinesis:GetShardIterator'
+                  - 'kinesis:GetRecords'
+                  - 'kinesis:PutRecord'
+                  - 'kinesis:PutRecords'
+                Resource:
+                  - !GetAtt
+                    - InputLogStream
+                    - Arn
+              - Sid: Permissions
+                Action:
+                  - 's3:*'
+                  - 'kinesis:*'
+                  - 'firehose:*'
+                  - 'sts:AssumeRole'
+                Resource:
+                  - '*'
+                Effect: Allow
+
+  FireHoseRole1:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - firehose.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: FirehoseAccessPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: 'firehoses3access'
+                Effect: Allow
+                Action:
+                  - 's3:AbortMultipartUpload'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:ListBucketMultipartUploads'
+                  - 's3:PutObject'
+                Resource:
+                  - '*'
+
+  InputLogStream:
+    Type: 'AWS::Kinesis::Stream'
+    Properties:
+      Name: InputLogStream
+      ShardCount: 1
+
+  APIGatewayBeaconStream:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Body: !Join
+        - ''
+        - - >-
+            {"swagger": "2.0","info": {"version":
+            "2016-05-03T18:49:59Z","title":
+            "APIGatewayBeaconStream"},"basePath": "/example","schemes":
+            ["https"],"paths": {"/beacon/stream": {"get": {"consumes":
+            ["application/json"],"produces": ["application/json"],"parameters":
+            [{"name": "Host","in": "header","required": false,"type":
+            "string"},{"name": "browseraction","in": "query","required":
+            false,"type": "string"},{"in": "body","name":
+            "BeaconRequest","required": true,"schema": {"$ref":
+            "#/definitions/BeaconRequest"}}],"responses": {"200":
+            {"description": "200 response","schema": {"$ref":
+            "#/definitions/Empty"}}},"x-amazon-apigateway-integration":
+            {"credentials":"
+          - !GetAtt
+            - APIGateway2KinesisRole
+            - Arn
+          - >-
+            ", "responses": {"default": {"statusCode":
+            "200"}},"requestParameters":
+            {"integration.request.querystring.browseraction":
+            "method.request.querystring.browseraction","integration.request.header.Host":
+            "method.request.header.Host"},"passthroughBehavior":
+            "when_no_match","httpMethod": "POST","uri": "arn:aws:apigateway:
+          - !Ref 'AWS::Region'
+          - >-
+            :kinesis:action/PutRecord","requestTemplates": {"application/json":
+            "#set($inputRoot = $input.path('$'))\n{\n  \"Data\":
+            \"$util.base64Encode(\"{ \"\"browseraction\"\" :
+            \"\"$input.params('browseraction')\"\", \"\"site\"\" :
+            \"\"$input.params('Host')\"\" }\")\",\n  \"PartitionKey\" :
+            \"shardId-000000000\",\n  \"StreamName\" : \"
+          - !Ref InputLogStream
+          - >-
+            \"\n}"},"type": "aws"}}}},"definitions": {"Empty": {"type":
+            "object"},"BeaconRequest": {"type": "object","properties":
+            {"browseraction": {"type": "string","description": "Querystring
+            variable"},"Host": {"type": "string","description": "Header
+            variable"}},"description": "Sample incoming request from client"}}}
+      Description: Kinesis Example API Gateway RestAPI
+      Name: BeaconAPI
+
+  APIGatewayBeaconStreamDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    Properties:
+      Description: Example deployment
+      RestApiId: !Ref APIGatewayBeaconStream
+      StageName: dummy
+
+  APIGatewayBeaconStreamExampleStage:
+    Type: 'AWS::ApiGateway::Stage'
+    Properties:
+      CacheClusterEnabled: false
+      DeploymentId: !Ref APIGatewayBeaconStreamDeployment
+      Description: Example API Gateway Stage
+      RestApiId: !Ref APIGatewayBeaconStream
+      StageName: example
+
+Outputs:
+  Region:
+    Description: Lab Region
+    Value: !Ref AWS::Region

@@ -21,8 +21,7 @@ val scala213 = "2.13.7"
 
 lazy val spark = (project in file("."))
   .aggregate(
-    cdktf,
-    notebooks
+    cdktf
   )
   .settings(
     scalaVersion := scala213,
@@ -33,8 +32,21 @@ lazy val cdktf = (project in file("modules/cdktf"))
   .settings(scalaVersion := scala213)
   .settings(watchTriggers += baseDirectory.value.toGlob / "*.scala")
 
-lazy val notebooks = (project in file("modules/notebooks"))
+lazy val `data-lake` = (project in file("modules/data-lake"))
   .settings(scalaVersion := scala213)
+  .dependsOn(cdktf)
+
+lazy val `data-warehouse` = (project in file("modules/data-warehouse"))
+  .settings(scalaVersion := scala213)
+  .dependsOn(cdktf)
+
+lazy val `deep-learning` = (project in file("modules/deep-learning"))
+  .settings(scalaVersion := scala213)
+  .dependsOn(cdktf)
+
+lazy val `map-reduce` = (project in file("modules/map-reduce"))
+  .settings(scalaVersion := scala213)
+  .dependsOn(cdktf)
 
 def welcomeMessage: Def.Setting[String] = onLoadMessage := {
   def header(text: String): String = s"${csl.BOLD}${csl.MAGENTA}$text${csl.RESET}"

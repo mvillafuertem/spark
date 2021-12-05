@@ -1,12 +1,11 @@
-package io.github.mvillafuertem.spark.cdktf.data.lake
+package io.github.mvillafuertem.data.lake
 
 import com.hashicorp.cdktf
 import com.hashicorp.cdktf.{AppOptions, TerraformStack}
 import imports.aws.AwsProvider
-import imports.aws.athena.{AthenaDatabase, AthenaNamedQuery, AthenaWorkgroup, AthenaWorkgroupConfiguration, AthenaWorkgroupConfigurationResultConfiguration}
+import imports.aws.athena.{AthenaNamedQuery, AthenaWorkgroup, AthenaWorkgroupConfiguration, AthenaWorkgroupConfigurationResultConfiguration}
 import imports.aws.glue.{GlueCatalogDatabase, GlueCrawler, GlueCrawlerS3Target}
-import imports.aws.iam.{IamPolicy, IamRole, IamRolePolicy, IamRolePolicyAttachment}
-import imports.aws.lake_formation.{LakeformationDataLakeSettings, LakeformationDataLakeSettingsCreateDatabaseDefaultPermissions, LakeformationDataLakeSettingsCreateTableDefaultPermissions}
+import imports.aws.iam.{IamPolicy, IamRole, IamRolePolicyAttachment}
 import imports.aws.s3.{S3Bucket, S3BucketObject}
 import software.constructs.Construct
 
@@ -176,10 +175,10 @@ final class SimpleDataLake(scope: Construct, id: String) extends TerraformStack(
 }
 
 // saml2aws login
-// sbt "cdktf/runMain io.github.mvillafuertem.spark.cdktf.data.lake.SimpleDataLake"
-// yarn --cwd modules/cdktf/ planLake
-// yarn --cwd modules/cdktf/ applyLake
-// yarn --cwd modules/cdktf/ destroyLake
+// sbt "data-lake/runMain io.github.mvillafuertem.data.lake.SimpleDataLake"
+// yarn --cwd modules/data-lake/ planLake
+// yarn --cwd modules/data-lake/ applyLake
+// yarn --cwd modules/data-lake/ destroyLake
 object SimpleDataLake extends App {
 
   private val app: cdktf.App = new cdktf.App(

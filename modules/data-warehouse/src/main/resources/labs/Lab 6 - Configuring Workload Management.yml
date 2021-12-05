@@ -1,0 +1,206 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Data Warehousing on AWS - Lab 6 - Configuring Workload Management
+
+Parameters:
+  LinuxAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+Resources:
+  LabVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: Lab VPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref LabVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    DependsOn: AttachGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs
+      Tags:
+        - Key: Name
+          Value: Public Subnet
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: PublicSubnet
+    Properties:
+      VpcId: !Ref LabVPC
+      Tags:
+        - Key: Name
+          Value: Public Route Table
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  pgwebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: pgweb Security Group
+      GroupDescription: Enable access to pgweb
+      VpcId: !Ref LabVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: pgweb Security Group
+
+  pgwebServer:
+    Type: AWS::EC2::Instance
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+        Count: 1
+    DependsOn:
+      - RedshiftCluster
+    Properties:
+      InstanceType: t2.micro
+      SubnetId: !Ref PublicSubnet
+      ImageId: !Ref LinuxAmiId
+      SecurityGroupIds:
+        - !Ref pgwebSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y &&
+          yum install -y docker &&
+          service docker start &&
+          docker run --env SESSIONS=1 -d -p 80:8081 awsu/pgweb &&
+          # Load data into Redshift
+          yum install -y postgresql &&
+          wget https://${AWS::Region}-tcprod.s3.${AWS::Region}.amazonaws.com/courses/ILT-TF-200-DBDWOA/v1.6.1/lab-6-wlm/scripts/load-data.sql &&
+          HOST=${RedshiftCluster.Endpoint.Address} &&
+          ROLE=${RedshiftRole.Arn} &&
+          export PGPASSWORD=Redshift123 &&
+          sed -i -e "s|ROLE-ARN|$ROLE|" load-data.sql &&
+          psql --host=$HOST --username=admin --port=5439 lab --file=load-data.sql >/tmp/psql.log
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource pgwebServer --region ${AWS::Region}
+      Tags:
+        - Key: Name
+          Value: pgweb
+
+  RedshiftRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: Redshift-Role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - redshift.amazonaws.com
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - s3:*
+                Effect: Allow
+                Resource: "*"
+
+  RedshiftSG:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn:
+      - RedshiftRole
+    Properties:
+      GroupName: Redshift Security Group
+      GroupDescription: Enable access to redshift
+      VpcId: !Ref LabVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5439
+          ToPort: 5439
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: Redshift Security Group
+
+  RedshiftClusterSubnetGroup:
+    Type: AWS::Redshift::ClusterSubnetGroup
+    Properties:
+      Description: LabClusterSubnet
+      SubnetIds:
+        - !Ref PublicSubnet
+
+  RedshiftCluster:
+    Type: AWS::Redshift::Cluster
+    Properties:
+      ClusterType: multi-node
+      NumberOfNodes: 2
+      NodeType: dc2.large
+      MasterUsername: admin
+      MasterUserPassword: Redshift123
+      IamRoles:
+        - !GetAtt RedshiftRole.Arn
+      VpcSecurityGroupIds:
+        - !Ref RedshiftSG
+      ClusterSubnetGroupName: !Ref RedshiftClusterSubnetGroup
+      PubliclyAccessible: true
+      Port: 5439
+      DBName: lab
+
+  ReadOnlyGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+
+  GroupAssignment:
+    Type: AWS::IAM::UserToGroupAddition
+    Properties:
+      GroupName: !Ref ReadOnlyGroup
+      Users:
+        - awsstudent
+
+Outputs:
+  Region:
+    Value: !Ref AWS::Region
+    Description: Lab Region
+
+  RedshiftEndpoint:
+    Value: !GetAtt RedshiftCluster.Endpoint.Address
+    Description: Redshift Endpoint
+
+  RedshiftRole:
+    Value: !GetAtt RedshiftRole.Arn
+    Description: Redshift Role ARN
+
+  pgweb:
+    Value: !GetAtt pgwebServer.PublicIp
+    Description: pgwebIPAddress

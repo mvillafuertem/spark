@@ -1,0 +1,17 @@
+{
+  "name": "spark-cdktf",
+  "version": "0.1.0",
+  "description": "",
+  "license": "MIT",
+  "scripts": {
+    "applyProcessingServerLogsWithHive": "cd ./src/main/resources/stacks/processing-server-logs-with-hive && terraform apply",
+    "destroyProcessingServerLogsWithHive": "cd ./src/main/resources/stacks/processing-server-logs-with-hive && terraform destroy",
+    "planProcessingServerLogsWithHive": "cd ./src/main/resources/stacks/processing-server-logs-with-hive && terraform init && terraform plan"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "cdktf-cli": "^0.7.0",
+    "@types/node": "14.17.27"
+  },
+  "private": true
+}

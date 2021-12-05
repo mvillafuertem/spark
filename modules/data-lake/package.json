@@ -1,0 +1,20 @@
+{
+  "name": "data-lake",
+  "version": "0.1.0",
+  "description": "",
+  "license": "MIT",
+  "scripts": {
+    "applyLake": "cd ./src/main/resources/stacks/simple-data-lake && terraform apply",
+    "applyLakeFormation": "cd ./src/main/resources/stacks/simple-data-lake-using-aws-lake-formation && terraform apply",
+    "destroyLake": "cd ./src/main/resources/stacks/simple-data-lake && terraform destroy",
+    "destroyLakeFormation": "cd ./src/main/resources/stacks/simple-data-lake-using-aws-lake-formation && terraform destroy",
+    "planLake": "cd ./src/main/resources/stacks/simple-data-lake && terraform init && terraform plan",
+    "planLakeFormation": "cd ./src/main/resources/stacks/simple-data-lake-using-aws-lake-formation && terraform init && terraform plan"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "cdktf-cli": "^0.7.0",
+    "@types/node": "14.17.27"
+  },
+  "private": true
+}

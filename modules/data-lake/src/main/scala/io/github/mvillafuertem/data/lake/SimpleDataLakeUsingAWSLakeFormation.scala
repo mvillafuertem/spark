@@ -1,4 +1,4 @@
-package io.github.mvillafuertem.spark.cdktf.data.lake
+package io.github.mvillafuertem.data.lake
 
 import com.hashicorp.cdktf
 import com.hashicorp.cdktf.{AppOptions, TerraformStack}
@@ -329,10 +329,10 @@ class SimpleDataLakeUsingAWSLakeFormation(scope: Construct, id: String) extends 
 }
 
 // saml2aws login
-// sbt "cdktf/runMain io.github.mvillafuertem.spark.cdktf.data.lake.SimpleDataLakeUsingAWSLakeFormation"
-// yarn --cwd modules/cdktf/ planLakeFormation
-// yarn --cwd modules/cdktf/ applyLakeFormation
-// yarn --cwd modules/cdktf/ destroyLakeFormation
+// sbt "data-lake/runMain io.github.mvillafuertem.data.lake.SimpleDataLakeUsingAWSLakeFormation"
+// yarn --cwd modules/data-lake/ planLakeFormation
+// yarn --cwd modules/data-lake/ applyLakeFormation
+// yarn --cwd modules/data-lake/ destroyLakeFormation
 object SimpleDataLakeUsingAWSLakeFormation extends App {
 
   private val app: cdktf.App = new cdktf.App(

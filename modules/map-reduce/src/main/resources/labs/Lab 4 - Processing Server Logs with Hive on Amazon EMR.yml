@@ -1,0 +1,595 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'Big Data on AWS Lab 4: Processing Server Logs with Hive on Amazon EMR'
+Metadata: {}
+Parameters:
+  VPCCIDR:
+    Description: CIDR Block for VPC
+    Type: String
+    Default: 10.0.0.0/16
+    AllowedValues:
+      - 10.0.0.0/16
+  PublicSubnet1Param:
+    Description: Public Subnet 1
+    Type: String
+    Default: 10.0.0.0/24
+    AllowedValues:
+      - 10.0.0.0/24
+  SSHLocation:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: "9"
+    MaxLength: "18"
+    Default: 10.0.0.0/16
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x
+  # Linux image parameter
+  AmazonLinuxAMIID:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn-ami-hvm-x86_64-gp2
+
+Resources:
+  LabVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Ref VPCCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: VPC
+          Value: LAB
+        - Key: Name
+          Value: Lab VPC
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    DependsOn: LabVPC
+  AttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    DependsOn:
+      - LabVPC
+      - InternetGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      InternetGatewayId: !Ref InternetGateway
+  PublicSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    DependsOn: AttachGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      CidrBlock: !Ref PublicSubnet1Param
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+      Tags:
+        - Key: Name
+          Value: Public Subnet 1
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    DependsOn:
+      - LabVPC
+      - AttachGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      Tags:
+        - Key: Name
+          Value: Public
+  PublicRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn:
+      - PublicRouteTable
+      - AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    DependsOn:
+      - PublicRouteTable
+      - PublicSubnet1
+      - AttachGateway
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  EMRRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: EMR_DefaultRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - elasticmapreduce.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: aws-emr-service-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Resource: '*'
+                Action:
+                  - 'ec2:AuthorizeSecurityGroupEgress'
+                  - 'ec2:AuthorizeSecurityGroupIngress'
+                  - 'ec2:CancelSpotInstanceRequests'
+                  - 'ec2:CreateNetworkInterface'
+                  - 'ec2:CreateSecurityGroup'
+                  - 'ec2:CreateTags'
+                  - 'ec2:DeleteNetworkInterface'
+                  - 'ec2:DeleteSecurityGroup'
+                  - 'ec2:DeleteTags'
+                  - 'ec2:DescribeAvailabilityZones'
+                  - 'ec2:DescribeAccountAttributes'
+                  - 'ec2:DescribeDhcpOptions'
+                  - 'ec2:DescribeInstanceStatus'
+                  - 'ec2:DescribeInstances'
+                  - 'ec2:DescribeKeyPairs'
+                  - 'ec2:DescribeNetworkAcls'
+                  - 'ec2:DescribeNetworkInterfaces'
+                  - 'ec2:DescribePrefixLists'
+                  - 'ec2:DescribeRouteTables'
+                  - 'ec2:DescribeSecurityGroups'
+                  - 'ec2:DescribeSpotInstanceRequests'
+                  - 'ec2:DescribeSpotPriceHistory'
+                  - 'ec2:DescribeSubnets'
+                  - 'ec2:DescribeVpcAttribute'
+                  - 'ec2:DescribeVpcEndpoints'
+                  - 'ec2:DescribeVpcEndpointServices'
+                  - 'ec2:DescribeVpcs'
+                  - 'ec2:DetachNetworkInterface'
+                  - 'ec2:ModifyImageAttribute'
+                  - 'ec2:ModifyInstanceAttribute'
+                  - 'ec2:RequestSpotInstances'
+                  - 'ec2:RevokeSecurityGroupEgress'
+                  - 'ec2:RunInstances'
+                  - 'ec2:TerminateInstances'
+                  - 'ec2:DeleteVolume'
+                  - 'ec2:DescribeVolumeStatus'
+                  - 'ec2:DescribeVolumes'
+                  - 'ec2:DetachVolume'
+                  - 'iam:GetRole'
+                  - 'iam:GetRolePolicy'
+                  - 'iam:ListInstanceProfiles'
+                  - 'iam:ListRolePolicies'
+                  - 's3:CreateBucket'
+                  - 's3:Get*'
+                  - 's3:List*'
+                  - 'sdb:BatchPutAttributes'
+                  - 'sdb:Select'
+                  - 'sqs:CreateQueue'
+                  - 'sqs:Delete*'
+                  - 'sqs:GetQueue*'
+                  - 'sqs:PurgeQueue'
+                  - 'sqs:ReceiveMessage'
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'cloudwatch:DescribeAlarms'
+                  - 'cloudwatch:DeleteAlarms'
+                  - 'application-autoscaling:RegisterScalableTarget'
+                  - 'application-autoscaling:DeregisterScalableTarget'
+                  - 'application-autoscaling:PutScalingPolicy'
+                  - 'application-autoscaling:DeleteScalingPolicy'
+                  - 'application-autoscaling:Describe*'
+              - Effect: Allow
+                Action: 'iam:CreateServiceLinkedRole'
+                Resource:
+                  - arn:aws:iam::*:role/aws-service-role/spot.amazonaws.com/AWSServiceRoleForEC2Spot*
+                Condition:
+                  StringLike:
+                    'iam:AWSServiceName': spot.amazonaws.com
+              - Sid: PermissionToPassOnlyPreCreatedRoles
+                Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - arn:aws:iam::*:role/EMR_EC2_DefaultRole
+              - Action:
+                  - ec2:RunInstances
+                Effect: Deny
+                Resource: arn:aws:ec2:*:*:instance/*
+                Condition:
+                  StringNotEquals:
+                    ec2:InstanceType:
+                      - m4.large
+                      - m5.large
+                      - m3.xlarge
+                      - m4.xlarge
+                      - m5.xlarge
+              - Action:
+                  - ec2:*Spot*
+                Effect: Deny
+                Resource: '*'
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: EMR_EC2_DefaultRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: aws-emr-service-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Resource: '*'
+                Action:
+                  - 'cloudwatch:*'
+                  - 'dynamodb:*'
+                  - 'ec2:Describe*'
+                  - 'elasticmapreduce:Describe*'
+                  - 'elasticmapreduce:ListBootstrapActions'
+                  - 'elasticmapreduce:ListClusters'
+                  - 'elasticmapreduce:ListInstanceGroups'
+                  - 'elasticmapreduce:ListInstances'
+                  - 'elasticmapreduce:ListSteps'
+                  - 'kinesis:CreateStream'
+                  - 'kinesis:DeleteStream'
+                  - 'kinesis:DescribeStream'
+                  - 'kinesis:GetRecords'
+                  - 'kinesis:GetShardIterator'
+                  - 'kinesis:MergeShards'
+                  - 'kinesis:PutRecord'
+                  - 'kinesis:SplitShard'
+                  - 'rds:Describe*'
+                  - 's3:*'
+                  - 'sdb:*'
+                  - 'sns:*'
+                  - 'sqs:*'
+                  - 'kms:*'
+                  - 'glue:CreateDatabase'
+                  - 'glue:UpdateDatabase'
+                  - 'glue:DeleteDatabase'
+                  - 'glue:GetDatabase'
+                  - 'glue:GetDatabases'
+                  - 'glue:CreateTable'
+                  - 'glue:UpdateTable'
+                  - 'glue:DeleteTable'
+                  - 'glue:GetTable'
+                  - 'glue:GetTables'
+                  - 'glue:GetTableVersions'
+                  - 'glue:CreatePartition'
+                  - 'glue:BatchCreatePartition'
+                  - 'glue:UpdatePartition'
+                  - 'glue:DeletePartition'
+                  - 'glue:BatchDeletePartition'
+                  - 'glue:GetPartition'
+                  - 'glue:GetPartitions'
+                  - 'glue:BatchGetPartition'
+                  - 'glue:CreateUserDefinedFunction'
+                  - 'glue:UpdateUserDefinedFunction'
+                  - 'glue:DeleteUserDefinedFunction'
+                  - 'glue:GetUserDefinedFunction'
+                  - 'glue:GetUserDefinedFunctions'
+  CreateInstanceProfileRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - iam:CreateInstanceProfile
+                  - iam:DeleteInstanceProfile
+                  - iam:AddRoleToInstanceProfile
+                Resource: '*'
+              - Sid: PermissionToPassOnlyPreCreatedRoles
+                Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - arn:aws:iam::*:role/EMR_EC2_DefaultRole
+  CreateInstanceProfile:
+    Type: Custom::CreateInstanceProfile
+    Properties:
+      ServiceToken: !GetAtt 'CreateInstanceProfileFunction.Arn'
+  CreateInstanceProfileFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - EC2Role
+    Properties:
+      Code:
+        ZipFile: '''use strict'';var AWS = require(''aws-sdk'');var response = require(''cfn-response'');var
+          roleName = ''EMR_EC2_DefaultRole'';exports.handler = (event, context, callback)
+          => { var iam = new AWS.IAM(); var params = { InstanceProfileName: roleName
+          }; iam.deleteInstanceProfile(params, function(err, data) { var params =
+          { InstanceProfileName: roleName }; iam.createInstanceProfile(params, function(err,
+          data) { if (err) {console.log(err, err.stack); response.send(event, context,
+          response.FAILED, err);} else { var params = { InstanceProfileName: roleName,
+          RoleName: roleName}; iam.addRoleToInstanceProfile(params, function(err,
+          data) { if (err) {console.log(err, err.stack); response.send(event, context,
+          response.FAILED, err);}else{ console.log(data); response.send(event, context,
+          response.SUCCESS, data); }});}});});}'
+      FunctionName: CreateInstanceProfileFunction
+      Handler: index.handler
+      MemorySize: 128
+      Role: !GetAtt 'CreateInstanceProfileRole.Arn'
+      Runtime: nodejs12.x
+      Timeout: 90
+
+
+
+  LambdaVPCRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: LambdaLogToCloudWatch
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 'arn:aws:logs:*:*:*'
+        - PolicyName: Lambda_VPC_Policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: Stmt1506457719000
+                Effect: Allow
+                Action:
+                  - 'ec2:CreateDefaultVpc'
+                  - 'ec2:DescribeVpcs'
+                Resource:
+                  - '*'
+  #Lambda function to create Default VPC
+  LambdaCreateDefaultVPC:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Handler: index.lambda_handler
+      Runtime: python3.8
+      MemorySize: 512
+      Timeout: 120
+      Role: !GetAtt LambdaVPCRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import urllib3
+          import logging
+          http = urllib3.PoolManager()
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def lambda_handler(event, context):
+            logger.info(event)
+            client = boto3.client('ec2')
+            """ Get VPC list """
+            response = client.describe_vpcs()
+            vpclist = response.get('Vpcs')
+
+            """ Flag to track if the default vpc exists """
+            hasdefault = False
+
+            """ Iterate over dict of VPCs and check to see if we have a default VPC """
+            for vpcs in vpclist:
+              """ Search for IsDefault value in vpcs list """
+              if 'IsDefault' in vpcs:
+                vpcname = vpcs.get("VpcId")
+                print ("VPC: %s" % vpcname)
+                isd = vpcs.get("IsDefault")
+                print ("IsDefault value: %s" % isd)
+                if isd:
+                		""" Region has the default vpc - set flag to True """
+                		hasdefault = True
+                		break
+
+            print ("Has default: %s" % hasdefault)
+            """ Create default VPC and associated networking """
+            if not hasdefault:
+              print ("We need to create the default vpc")
+              try:
+                response = client.create_default_vpc()
+                print (response)
+              except Exception as error:
+                print (error)
+            response_value = int(event['ResourceProperties']['Input']) * 5
+            response_data = {}
+            response_data['Data'] = response_value
+            send_response(event, context, "SUCCESS", "Default VPC Created", response_data)
+
+          def send_response(event, context, status, reason, data):
+            body = json.dumps({
+                    "Status": status,
+                    "Reason": reason,
+                    "PhysicalResourceId": context.log_stream_name,
+                    "StackId": event.get("StackId"),
+                    "RequestId": event.get("RequestId"),
+                    "LogicalResourceId": event.get("LogicalResourceId"),
+                    "NoEcho": False,
+                    "Data": data
+            })
+            http.request(
+              "PUT",
+              event.get("ResponseURL"),
+              body=body,
+              headers={
+                "Content-Type": "",
+                "Content-Length": str(len(body))
+              }
+              )
+
+  MyDefaultVPC:
+    Type: AWS::CloudFormation::CustomResource
+    Version: "1.0"
+    Properties:
+      ServiceToken: !GetAtt LambdaCreateDefaultVPC.Arn
+      Input: 40
+
+  ### Command Host Configuration ###
+  CommandHostSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !Ref LabVPC
+      GroupDescription: Enable HTTP access via port 80
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHLocation
+
+  CommandHostRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: ["ec2.amazonaws.com"]
+            Action: ["sts:AssumeRole"]
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:CreateKeyPair
+                  - ec2:DeleteKeyPair
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:key-pair/EMRKey
+              - Effect: Allow
+                Action:
+                  - elasticmapreduce:List*
+                  - elasticmapreduce:Describe*
+                Resource: "*"
+
+  CommandHostInstProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref CommandHostRole
+
+  CommandHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      IamInstanceProfile: !Ref CommandHostInstProfile
+      ImageId: !Ref AmazonLinuxAMIID
+      InstanceType: t3.micro
+      NetworkInterfaces:
+        - DeviceIndex: "0"
+          AssociatePublicIpAddress: true
+          SubnetId: !Ref PublicSubnet1
+          GroupSet:
+            - !Ref CommandHostSG
+      Tags:
+        - Key: Name
+          Value: CommandHost
+      UserData:
+        "Fn::Base64": !Sub |
+          #!/bin/bash -ex
+          # Installing updates and jq
+          yum update -y
+          yum -y install jq
+
+          ## Deleting existing EMRKey pair if it exists and creating new one.
+          if ($(aws ec2 create-key-pair --key-name EMRKey --region ${AWS::Region} --query 'KeyMaterial' --output text > /home/ec2-user/EMRKey.pem)); then 
+            echo "Good"
+          elif ($(aws ec2 delete-key-pair --key-name EMRKey --region ${AWS::Region})); then 
+              echo "Deleted" 
+              aws ec2 create-key-pair --key-name EMRKey --region ${AWS::Region} --query 'KeyMaterial' --output text > /home/ec2-user/EMRKey.pem
+              echo "Redone the key"
+          fi
+
+          # Changing the key file to read permission
+          chmod +r /home/ec2-user/EMRKey.pem &&
+
+          # Checking if ssm-user exist in the EC2 instance. If exists, the condition will pass else will create ssm-user
+          if id -u "ssm-user" >/dev/null 2>&1; then 
+            echo 'ssm-user already exists' 
+          else 
+            useradd ssm-user -m -U
+          fi
+
+          # Updating aws configuration for ssm-user
+          mkdir /home/ssm-user/.aws &&
+          echo "[default]" > /home/ssm-user/.aws/config &&
+          echo "region = ${AWS::Region}" >> /home/ssm-user/.aws/config &&
+          cp /home/ec2-user/EMRKey.pem /home/ssm-user/ &&
+          chmod +r /home/ssm-user/EMRKey.pem
+
+          # Starting wait condition - this delay is introduced to make sure emr cluster gets the correct key pair.
+          /opt/aws/bin/cfn-signal -e $? "${waitConditionHandle}"
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource CommandHost --region ${AWS::Region}
+
+
+  waitConditionHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+    Properties: {}
+
+  waitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: CommandHost
+    Properties:
+      Count: 0
+      Handle: !Ref 'waitConditionHandle'
+      Timeout: '120'
+
+  #ReadOnly configuration
+  ReadOnlyGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+
+  GroupAssignment:
+    Type: AWS::IAM::UserToGroupAddition
+    DependsOn: ReadOnlyGroup
+    Properties:
+      GroupName: !Ref ReadOnlyGroup
+      Users:
+        - awsstudent
+
+Outputs:
+  Region:
+    Description: Lab Region
+    Value: !Ref AWS::Region
+  CommandHostSessionManagementUrl:
+    Description: The URL to the Session Management Console for CommandHost
+    Value: !Sub https://${AWS::Region}.console.aws.amazon.com/systems-manager/session-manager/${CommandHost}?region=${AWS::Region}
+  CommandHostIP:
+    Description: CommandHost Public IP
+    Value: !GetAtt CommandHost.PublicIp
