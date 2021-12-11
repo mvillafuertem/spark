@@ -374,9 +374,9 @@ final class ProcessingServerLogsWithHive(scope: Construct, id: String) extends T
   private val createInstanceProfileFunctionArchiveFile: DataArchiveFile = DataArchiveFile.Builder
     .create(self, "create_instance_profile_function_archive_file")
     .`type`("zip")
-    .sourceFile(new File("modules/cdktf/src/main/scala/io/github/mvillafuertem/spark/cdktf/emr/index.js").getAbsolutePath)
+    .sourceFile(new File("modules/map-reduce/src/main/scala/io/github/mvillafuertem/map/reduce/index.js").getAbsolutePath)
     .outputFileMode("0666")
-    .outputPath(new File("modules/cdktf/target/createInstanceProfileFunction.zip").getAbsolutePath)
+    .outputPath(new File("modules/map-reduce/target/createInstanceProfileFunction.zip").getAbsolutePath)
     .build()
 
   private val _: LambdaFunction = LambdaFunction.Builder
@@ -452,9 +452,9 @@ final class ProcessingServerLogsWithHive(scope: Construct, id: String) extends T
   private val lambdaCreateDefaultVPCArchiveFile: DataArchiveFile = DataArchiveFile.Builder
     .create(self, "lambda_create_default_vpc_archive_file")
     .`type`("zip")
-    .sourceFile("/Users/mvillafuerte/Projects/spark/modules/cdktf/src/main/scala/io/github/mvillafuertem/spark/cdktf/emr/index.py")
+    .sourceFile(new File("modules/map-reduce/src/main/scala/io/github/mvillafuertem/map/reduce/index.py").getAbsolutePath)
     .outputFileMode("0666")
-    .outputPath("/Users/mvillafuerte/Projects/spark/modules/cdktf/target/lambdaCreateDefaultVPC.zip")
+    .outputPath(new File("modules/map-reduce/target/lambdaCreateDefaultVPC.zip").getAbsolutePath)
     .build()
 
   val lambdaCreateDefaultVPC: LambdaFunction = LambdaFunction.Builder
@@ -660,7 +660,7 @@ object ProcessingServerLogsWithHive extends App {
     AppOptions
       .builder()
       .stackTraces(false)
-      .outdir("modules/data-warehouse/src/main/resources/")
+      .outdir("modules/map-reduce/src/main/resources/")
       .context(
         Map(
           "excludeStackIdFromLogicalIds" -> true,
