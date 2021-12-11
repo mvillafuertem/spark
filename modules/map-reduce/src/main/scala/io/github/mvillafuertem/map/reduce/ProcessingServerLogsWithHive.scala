@@ -6,7 +6,7 @@ import imports.archive.DataArchiveFile
 import imports.aws.AwsProvider
 import imports.aws.ec2.{DataAwsAmi, DataAwsAmiFilter, Instance, InstanceNetworkInterface}
 import imports.aws.iam._
-import imports.aws.lambda_function.LambdaFunction
+import imports.aws.lambdafunction.LambdaFunction
 import imports.aws.vpc._
 import software.constructs.Construct
 

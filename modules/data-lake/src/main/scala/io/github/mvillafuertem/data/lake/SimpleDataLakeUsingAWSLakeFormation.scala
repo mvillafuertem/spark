@@ -6,7 +6,7 @@ import imports.aws.AwsProvider
 import imports.aws.athena.{AthenaNamedQuery, AthenaWorkgroup, AthenaWorkgroupConfiguration, AthenaWorkgroupConfigurationResultConfiguration}
 import imports.aws.glue.{GlueCatalogDatabase, GlueCrawler, GlueCrawlerS3Target}
 import imports.aws.iam.{IamPolicy, IamRole, IamRolePolicyAttachment}
-import imports.aws.lake_formation._
+import imports.aws.lakeformation._
 import imports.aws.s3.{S3Bucket, S3BucketObject}
 import software.constructs.Construct
 

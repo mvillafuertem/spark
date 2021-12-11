@@ -1,4 +1,5 @@
 src/main/java
+src/main/resources/imports/archive
 src/main/resources/imports/aws
 src/main/resources/manifest.json
 src/main/resources/stacks
