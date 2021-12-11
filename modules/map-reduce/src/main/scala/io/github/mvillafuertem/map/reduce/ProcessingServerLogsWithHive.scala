@@ -10,6 +10,7 @@ import imports.aws.lambdafunction.LambdaFunction
 import imports.aws.vpc._
 import software.constructs.Construct
 
+import java.io.File
 import scala.jdk.CollectionConverters._
 
 final class ProcessingServerLogsWithHive(scope: Construct, id: String) extends TerraformStack(scope, id) {
@@ -373,9 +374,9 @@ final class ProcessingServerLogsWithHive(scope: Construct, id: String) extends T
   private val createInstanceProfileFunctionArchiveFile: DataArchiveFile = DataArchiveFile.Builder
     .create(self, "create_instance_profile_function_archive_file")
     .`type`("zip")
-    .sourceFile("/Users/mvillafuerte/Projects/spark/modules/cdktf/src/main/scala/io/github/mvillafuertem/spark/cdktf/emr/index.js")
+    .sourceFile(new File("modules/cdktf/src/main/scala/io/github/mvillafuertem/spark/cdktf/emr/index.js").getAbsolutePath)
     .outputFileMode("0666")
-    .outputPath("/Users/mvillafuerte/Projects/spark/modules/cdktf/target/createInstanceProfileFunction.zip")
+    .outputPath(new File("modules/cdktf/target/createInstanceProfileFunction.zip").getAbsolutePath)
     .build()
 
   private val _: LambdaFunction = LambdaFunction.Builder
@@ -659,7 +660,7 @@ object ProcessingServerLogsWithHive extends App {
     AppOptions
       .builder()
       .stackTraces(false)
-      .outdir("modules/cdktf/src/main/resources/")
+      .outdir("modules/data-warehouse/src/main/resources/")
       .context(
         Map(
           "excludeStackIdFromLogicalIds" -> true,

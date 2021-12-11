@@ -1,0 +1,167 @@
+{
+  "//": {
+    "metadata": {
+      "version": "0.7.0",
+      "stackName": "simple-data-lake",
+      "backend": "local"
+    }
+  },
+  "terraform": {
+    "required_providers": {
+      "aws": {
+        "version": "~> 3.63.0",
+        "source": "aws"
+      }
+    }
+  },
+  "provider": {
+    "aws": [
+      {
+        "allowed_account_ids": [
+          "582268654997"
+        ],
+        "profile": "sngular",
+        "region": "eu-west-3",
+        "shared_credentials_file": "~/.aws/credentials"
+      }
+    ]
+  },
+  "resource": {
+    "aws_s3_bucket": {
+      "simple_data_lake_bucket": {
+        "bucket": "simple-data-lake-bucket",
+        "force_destroy": true,
+        "//": {
+          "metadata": {
+            "path": "simple-data-lake/simple_data_lake_bucket",
+            "uniqueId": "simple_data_lake_bucket"
+          }
+        }
+      }
+    },
+    "aws_s3_bucket_object": {
+      "object_data_bucket": {
+        "bucket": "${aws_s3_bucket.simple_data_lake_bucket.id}",
+        "etag": "d127740f-b833-408c-b3fb-048f8be12434",
+        "key": "data/movies.csv",
+        "source": "/Users/mvillafuerte/Projects/spark/modules/data-lake/src/main/resources/data/lake/databucket/data/movies.csv",
+        "//": {
+          "metadata": {
+            "path": "simple-data-lake/object_data_bucket",
+            "uniqueId": "object_data_bucket"
+          }
+        }
+      },
+      "object_results_bucket": {
+        "bucket": "${aws_s3_bucket.simple_data_lake_bucket.id}",
+        "key": "results/",
+        "//": {
+          "metadata": {
+            "path": "simple-data-lake/object_results_bucket",
+            "uniqueId": "object_results_bucket"
+          }
+        }
+      }
+    },
+    "aws_iam_role": {
+      "iam_glue_role": {
+        "assume_role_policy": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Principal\": {\n        \"Service\": \"glue.amazonaws.com\"\n      },\n      \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}",
+        "description": "Allows Glue to call AWS services on your behalf.",
+        "max_session_duration": 3600,
+        "name": "iam-glue-role",
+        "//": {
+          "metadata": {
+            "path": "simple-data-lake/iam_glue_role",
+            "uniqueId": "iam_glue_role"
+          }
+        }
+      }
+    },
+    "aws_iam_policy": {
+      "iam_glue_role_policy": {
+        "name": "iam-glue-role-policy",
+        "policy": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"s3:GetBucketLocation\",\n        \"s3:ListAllMyBuckets\"\n      ],\n      \"Resource\": \"*\"\n    },\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": [\"s3:ListBucket\"],\n      \"Resource\": [\"${aws_s3_bucket.simple_data_lake_bucket.arn}\"]\n    },\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"s3:PutObject\",\n        \"s3:GetObject\",\n        \"s3:DeleteObject\"\n      ],\n      \"Resource\": [\"${aws_s3_bucket.simple_data_lake_bucket.arn}/*\"]\n    },\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"glue:GetDatabase\",\n        \"glue:CreateDatabase\",\n        \"glue:GetTable\",\n        \"glue:CreateTable\"\n      ],\n      \"Resource\": \"*\"\n    },\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"logs:CreateLogGroup\",\n        \"logs:CreateLogStream\",\n        \"logs:PutLogEvents\",\n        \"logs:AssociateKmsKey\"\n      ],\n      \"Resource\": [\n        \"arn:aws:logs:*:*:/aws-glue/*\"\n      ]\n    }\n  ]\n}",
+        "//": {
+          "metadata": {
+            "path": "simple-data-lake/iam_glue_role_policy",
+            "uniqueId": "iam_glue_role_policy"
+          }
+        }
+      }
+    },
+    "aws_iam_role_policy_attachment": {
+      "iam_glue_role_policy_attachment": {
+        "policy_arn": "${aws_iam_policy.iam_glue_role_policy.arn}",
+        "role": "${aws_iam_role.iam_glue_role.id}",
+        "//": {
+          "metadata": {
+            "path": "simple-data-lake/iam_glue_role_policy_attachment",
+            "uniqueId": "iam_glue_role_policy_attachment"
+          }
+        }
+      }
+    },
+    "aws_glue_catalog_database": {
+      "glue_catalog_database": {
+        "location_uri": "s3://${aws_s3_bucket.simple_data_lake_bucket.bucket}/data",
+        "name": "lab1-db",
+        "//": {
+          "metadata": {
+            "path": "simple-data-lake/glue_catalog_database",
+            "uniqueId": "glue_catalog_database"
+          }
+        }
+      }
+    },
+    "aws_glue_crawler": {
+      "glue_crawler": {
+        "database_name": "${aws_glue_catalog_database.glue_catalog_database.name}",
+        "name": "lab1-crawler",
+        "role": "${aws_iam_role.iam_glue_role.id}",
+        "table_prefix": "movies_",
+        "s3_target": [
+          {
+            "path": "${aws_s3_bucket.simple_data_lake_bucket.bucket}/data"
+          }
+        ],
+        "//": {
+          "metadata": {
+            "path": "simple-data-lake/glue_crawler",
+            "uniqueId": "glue_crawler"
+          }
+        }
+      }
+    },
+    "aws_athena_workgroup": {
+      "athena_workgroup": {
+        "force_destroy": true,
+        "name": "lab1-athena-workgroup",
+        "configuration": {
+          "result_configuration": {
+            "output_location": "s3://simple-data-lake-bucket/results/"
+          }
+        },
+        "//": {
+          "metadata": {
+            "path": "simple-data-lake/athena_workgroup",
+            "uniqueId": "athena_workgroup"
+          }
+        }
+      }
+    },
+    "aws_athena_named_query": {
+      "lab1_athena_named_query": {
+        "database": "lab1-db",
+        "name": "lab1-athena-named-query",
+        "query": "SELECT * FROM \"lab1-db\".\"movies_data\" limit 10;",
+        "workgroup": "${aws_athena_workgroup.athena_workgroup.id}",
+        "//": {
+          "metadata": {
+            "path": "simple-data-lake/lab1_athena_named_query",
+            "uniqueId": "lab1_athena_named_query"
+          }
+        }
+      }
+    }
+  }
+}

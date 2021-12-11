@@ -40,7 +40,7 @@ class SimpleDataLakeUsingAWSLakeFormation(scope: Construct, id: String) extends 
     .create(self, "object_data_bucket")
     .bucket(s3Bucket.getId)
     .key("data/movies.csv")
-    .source(new File("modules/cdktf/src/main/resources/data/lake/databucket/data/movies.csv").getAbsolutePath)
+    .source(new File("modules/data-lake/src/main/resources/data/lake/databucket/data/movies.csv").getAbsolutePath)
     .etag(UUID.randomUUID().toString)
     .build()
 
@@ -339,7 +339,7 @@ object SimpleDataLakeUsingAWSLakeFormation extends App {
     AppOptions
       .builder()
       .stackTraces(false)
-      .outdir("modules/cdktf/src/main/resources/")
+      .outdir("modules/data-lake/src/main/resources/")
       .context(
         Map(
           "excludeStackIdFromLogicalIds" -> true,

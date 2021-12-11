@@ -1,0 +1,12 @@
+{
+  "version": "0.7.0",
+  "stacks": {
+    "simple-data-lake": {
+      "name": "simple-data-lake",
+      "constructPath": "simple-data-lake",
+      "workingDirectory": "stacks/simple-data-lake",
+      "synthesizedStackPath": "stacks/simple-data-lake/cdk.tf.json",
+      "annotations": []
+    }
+  }
+}
