@@ -1,0 +1,373 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Lab - Deploying a Trained Model for Prediction on AWS Lambda
+
+Parameters:
+
+  LabVPCCIDR:
+    Description: CIDR Block for Lab VPC
+    Type: String
+    Default: 10.0.0.0/16
+    AllowedValues:
+      - 10.0.0.0/16
+
+  LabVPCPublicSubnetCIDR:
+    Description: Lab VPC Public Subnet
+    Type: String
+    Default: 10.0.10.0/24
+    AllowedValues:
+      - 10.0.10.0/24
+
+Mappings:
+  AmazonLinuxAMI:
+    us-east-1:
+      AMI: ami-a4c7edb2
+    us-east-2:
+      AMI: ami-8a7859ef
+    us-west-1:
+      AMI: ami-327f5352
+    us-west-2:
+      AMI: ami-6df1e514
+    ca-central-1:
+      AMI: ami-a7aa15c3
+    eu-west-1:
+      AMI: ami-d7b9a2b1
+    eu-west-2:
+      AMI: ami-ed100689
+    eu-central-1:
+      AMI: ami-82be18ed
+    sa-east-1:
+      AMI: ami-87dab1eb
+    ap-southeast-1:
+      AMI: ami-77af2014
+    ap-southeast-2:
+      AMI: ami-10918173
+    ap-south-1:
+      AMI: ami-47205e28
+    ap-northeast-1:
+      AMI: ami-3bd3c45c
+    ap-northeast-2:
+      AMI: ami-e21cc38c
+
+Resources:
+
+  LabVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref LabVPCCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: VPC
+          Value: Lab VPC
+        - Key: Name
+          Value: Lab VPC
+
+  LabVPCInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    DependsOn: LabVPC
+
+  LabVPCAttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn:
+      - LabVPC
+      - LabVPCInternetGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      InternetGatewayId: !Ref LabVPCInternetGateway
+
+  LabVPCPublicSubnet:
+    Type: AWS::EC2::Subnet
+    DependsOn: LabVPCAttachGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      CidrBlock: !Ref LabVPCPublicSubnetCIDR
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+      Tags:
+        - Key: Name
+          Value: Lab VPC Public Subnet
+
+  LabVPCPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn:
+      - LabVPC
+      - LabVPCAttachGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      Tags:
+        - Key: Name
+          Value: Lab VPC Public Route Table
+
+  DevPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+      - LabVPCPublicRouteTable
+      - LabVPCAttachGateway
+    Properties:
+      RouteTableId: !Ref LabVPCPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref LabVPCInternetGateway
+
+  DevPublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn:
+      - LabVPCPublicRouteTable
+      - LabVPCPublicSubnet
+      - LabVPCAttachGateway
+    Properties:
+      SubnetId: !Ref LabVPCPublicSubnet
+      RouteTableId: !Ref LabVPCPublicRouteTable
+
+  EC2InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: LabVPCAttachGateway
+    Properties:
+      GroupDescription: Security Group for EC2 instance
+      VpcId: !Ref LabVPC
+      Tags:
+        - Key: Name
+          Value: EC2InstanceSecurityGroup
+        - Key: InstanceType
+          Value: General
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  EC2InstanceProfile:
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EC2InstanceEC2TrustAccessRole
+    Type: AWS::IAM::InstanceProfile
+
+  EC2InstanceEC2TrustAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+      Path: /
+
+  EC2InstancePolicy:
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - ec2:*
+              - logs:*
+              - cloudformation:*
+              - s3:*
+            Effect: Allow
+            Resource: '*'
+      PolicyName: EC2InstanceRestrictedAccess
+      Roles:
+        - !Ref EC2InstanceEC2TrustAccessRole
+    Type: AWS::IAM::Policy
+
+  EC2WaitHandle01:
+    Type: AWS::CloudFormation::WaitConditionHandle
+    Properties: {}
+
+  EC2WaitCondition01:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: EC2Instance
+    Properties:
+      Handle: !Ref EC2WaitHandle01
+      Timeout: 2400
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - LabVPCPublicSubnet
+      - EC2InstanceSecurityGroup
+      - LabVPCAttachGateway
+      - Hosting
+    Properties:
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      ImageId: !FindInMap
+        - AmazonLinuxAMI
+        - !Ref 'AWS::Region'
+        - AMI
+      InstanceType: t2.small
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: true
+          SubnetId: !Ref LabVPCPublicSubnet
+          GroupSet:
+            - !Ref EC2InstanceSecurityGroup
+      Tags:
+        - Key: Name
+          Value: Lab Setup Instance
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -ex
+          cd /home/ec2-user/
+          aws s3 cp s3://us-west-2-tcprod/courses/ILT-TF-200-MLDEEP/v1.5.8/lab-3-lambda/scripts/lambda_function.zip /home/ec2-user/lambda_function.zip
+          aws s3 cp s3://us-west-2-tcprod/courses/ILT-TF-200-MLDEEP/v1.5.8/lab-3-lambda/scripts/lambda_function.py /home/ec2-user
+          aws s3 cp s3://us-west-2-tcprod/courses/ILT-TF-200-MLDEEP/v1.5.8/lab-3-lambda/scripts/website/ s3://${Hosting} --recursive --acl public-read
+          aws s3 cp s3://us-west-2-tcprod/courses/ILT-TF-200-MLDEEP/v1.5.8/lab-3-lambda/scripts/resnet-18-0000.params s3://${S3Upload} --acl public-read
+          aws s3 cp s3://us-west-2-tcprod/courses/ILT-TF-200-MLDEEP/v1.5.8/lab-3-lambda/scripts/pets.jpg s3://${S3Upload}/images/ --acl public-read
+          aws s3 cp s3://us-west-2-tcprod/courses/ILT-TF-200-MLDEEP/v1.5.8/lab-3-lambda/scripts/resnet-18-symbol.json s3://${S3Upload} --acl public-read
+          sed -i -e 's/<s3-bucket-name>/${S3Upload}/g' /home/ec2-user/lambda_function.py
+          zip -g lambda_function.zip ./lambda_function.py
+          aws s3 cp --acl public-read /home/ec2-user/lambda_function.zip s3://${S3Upload}
+          /opt/aws/bin/cfn-signal -s true '${EC2WaitHandle01}'
+
+  ModelDeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: S3AndLogsAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: ReadInputStream
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - s3:*
+                Resource: '*'
+
+  Hosting:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: index.html
+
+  S3Upload:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: BucketOwnerFullControl
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - !GetAtt
+                - Hosting
+                - WebsiteURL
+            Id: myCORSRuleId1
+
+  identityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: mxnetServerlessIdentity
+      AllowUnauthenticatedIdentities: true
+
+  unauthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref identityPool
+              'ForAnyValue:StringLike':
+                'cognito-identity.amazonaws.com:amr': unauthenticated
+
+  unauthRolePolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: s3uploadpolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - mobileanalytics:PutEvents
+              - cognito-sync:*
+            Resource:
+              - '*'
+          - Effect: Allow
+            Action:
+              - s3:*
+            Resource: !Join
+              - /
+              - - !GetAtt
+                  - S3Upload
+                  - Arn
+                - '*'
+          - Effect: Allow
+            Action:
+              - s3:*
+            Resource: !GetAtt
+              - S3Upload
+              - Arn
+      Roles:
+        - !Ref unauthRole
+
+  identityPoolRole:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref identityPool
+      Roles:
+        unauthenticated: !GetAtt
+          - unauthRole
+          - Arn
+Outputs:
+
+  Region:
+    Value: !Ref AWS::Region
+    Description: Lab Region
+
+  WebsiteURL:
+    Value: !GetAtt
+      - Hosting
+      - WebsiteURL
+    Description: URL for website hosted on S3
+
+  UploadBucketName:
+    Value: !Ref S3Upload
+    Description: Name of S3 bucket to upload images
+
+  ZipFile:
+    Value: !Join
+      - ''
+      - - 'https://s3.amazonaws.com/'
+        - !Ref S3Upload
+        - /lambda_function.zip
+    Description: Zip file with Lambda function
+
+  IdentityPoolId:
+    Value: !Ref identityPool
+    Description: IdentityPool ID

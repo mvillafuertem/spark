@@ -1,0 +1,144 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Deep Learning on AWS Lab - Setting Up A Amazon SageMaker Notebook Instance And Running
+  A Multi-Layer Perceptron Neural Network Model
+
+Resources:
+
+  LabVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: VPC
+          Value: Lab VPC
+        - Key: Name
+          Value: Lab VPC
+
+  LabVPCInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    DependsOn: LabVPC
+
+  LabVPCAttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn:
+      - LabVPC
+      - LabVPCInternetGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      InternetGatewayId: !Ref LabVPCInternetGateway
+
+  LabVPCPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    DependsOn: LabVPCAttachGateway
+    Properties:
+      MapPublicIpOnLaunch: True
+      VpcId: !Ref LabVPC
+      CidrBlock: 10.0.10.0/24
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+      Tags:
+        - Key: Name
+          Value: Public Subnet 1
+
+  LabVPCPublicSubnet2:
+    Type: AWS::EC2::Subnet
+    DependsOn: LabVPCAttachGateway
+    Properties:
+      MapPublicIpOnLaunch: True
+      VpcId: !Ref LabVPC
+      CidrBlock: 10.0.11.0/24
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ''
+      Tags:
+        - Key: Name
+          Value: Public Subnet 2
+
+  LabVPCPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn:
+      - LabVPC
+      - LabVPCAttachGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      Tags:
+        - Key: Name
+          Value: Public Route Table
+
+  DevPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+      - LabVPCPublicRouteTable
+      - LabVPCAttachGateway
+    Properties:
+      RouteTableId: !Ref LabVPCPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref LabVPCInternetGateway
+
+  DevPublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn:
+      - LabVPCPublicRouteTable
+      - LabVPCPublicSubnet1
+      - LabVPCAttachGateway
+    Properties:
+      SubnetId: !Ref LabVPCPublicSubnet1
+      RouteTableId: !Ref LabVPCPublicRouteTable
+
+  DevPublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn:
+      - LabVPCPublicRouteTable
+      - LabVPCPublicSubnet2
+      - LabVPCAttachGateway
+    Properties:
+      SubnetId: !Ref LabVPCPublicSubnet2
+      RouteTableId: !Ref LabVPCPublicRouteTable
+
+  SageMakerRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            -
+              Sid: ""
+              Effect: "Allow"
+              Principal:
+                Service:
+                  - "sagemaker.amazonaws.com"
+              Action:
+                - "sts:AssumeRole"
+        Path: "/service-role/"
+        Policies:
+          - PolicyName: sagemaker-execution-policy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                Effect: "Allow"
+                Action:
+                  - "sagemaker:*"
+                  - "s3:*"
+                  - "logs:*"
+                  - "glue:*"
+                  - "cloudwatch:*"
+                Resource: "*"
+
+  WorkInstanceProfile:
+      Type: "AWS::IAM::InstanceProfile"
+      Properties:
+          Roles:
+              - Ref: SageMakerRole
+          InstanceProfileName: NotebookInstanceRole
+
+Outputs:
+  SageMakerRoleArn:
+    Value: !GetAtt SageMakerRole.Arn
+  
+  Region:
+    Value: !Ref AWS::Region
+    Description: Lab Region

@@ -1,0 +1,211 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: >-
+  Deep Learning on AWS Lab - Training a Convolutional Neural Network to Predict
+  Images on CIFAR10 dataset
+
+Parameters:
+  UserId:
+    Type: String
+    Description: The path prefix where the lab resources are stored.
+    Default: awsstudent
+  S3PathPrefix:
+    Type: String
+    Description: The path prefix where the lab resources are stored.
+    Default: courses/ILT-TF-200-MLDEEP/v1.5.8/lab-2-cnn
+    #Default: courses/ILT-TF-200-MLDEEP/v1.5.3/lab-2-cnn
+
+  S3ResourceBucket:
+    Type: String
+    Description: The S3 Bucket of where to pull lab resources from.
+    Default: -tcprod
+
+Resources:
+
+  LabVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: VPC
+          Value: Lab VPC
+        - Key: Name
+          Value: Lab VPC
+
+  LabVPCInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    DependsOn: LabVPC
+
+  LabVPCAttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn:
+      - LabVPC
+      - LabVPCInternetGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      InternetGatewayId: !Ref LabVPCInternetGateway
+
+  LabVPCPublicSubnet:
+    Type: AWS::EC2::Subnet
+    DependsOn: LabVPCAttachGateway
+    Properties:
+      MapPublicIpOnLaunch: True
+      VpcId: !Ref LabVPC
+      CidrBlock: 10.0.10.0/24
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+      Tags:
+        - Key: Name
+          Value: Lab VPC Public Subnet
+
+  LabVPCPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn:
+      - LabVPC
+      - LabVPCAttachGateway
+    Properties:
+      VpcId: !Ref LabVPC
+      Tags:
+        - Key: Name
+          Value: Lab VPC Public Route Table
+
+  DevPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+      - LabVPCPublicRouteTable
+      - LabVPCAttachGateway
+    Properties:
+      RouteTableId: !Ref LabVPCPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref LabVPCInternetGateway
+
+  DevPublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn:
+      - LabVPCPublicRouteTable
+      - LabVPCPublicSubnet
+      - LabVPCAttachGateway
+    Properties:
+      SubnetId: !Ref LabVPCPublicSubnet
+      RouteTableId: !Ref LabVPCPublicRouteTable
+
+
+  SageMakerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - sagemaker.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+      Policies:
+        - PolicyName: Other
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - application-autoscaling:RegisterScalableTarget
+                  - application-autoscaling:PutScalingPolicy
+                  - cloudwatch:*
+                  - elasticfilesystem:DescribeMountTargets
+                  - elasticfilesystem:DescribeFileSystems
+                  - fsx:DescribeFileSystems
+                  - kms:DescribeKey
+                  - kms:ListAliases
+                  - logs:*
+                  - s3:CreateBucket
+                  - s3:DeleteObject
+                  - s3:PutObject
+                  - sagemaker:AddTags
+                  - sagemaker:CreateModel
+                  - sagemaker:CreateEndpoint
+                  - sagemaker:CreateModelPackage
+                  - sagemaker:CreatePresignedNotebookInstanceUrl
+                  - sagemaker:Delete*
+                  - sagemaker:GetSearchSuggestions
+                  - sagemaker:InvokeEndpoint
+                  - sagemaker:UpdateEndpoint
+                  - sagemaker:RenderUiTemplate
+                  - sagemaker:Search
+                  - sagemaker:Stop*
+                  - sagemaker:StartNotebookInstance
+                  - sagemaker:UpdateEndpointWeightsAndCapacities
+                Effect: Allow
+                Resource: "*"
+              - Action:
+                  - sagemaker:CreateEndpointConfig
+                  - sagemaker:CreateHyperParameterTuningJob
+                  - sagemaker:CreateTrainingJob
+                  - sagemaker:CreateTransformJob
+                Effect: Allow
+                Resource:
+                  - arn:aws:sagemaker:*:*:endpoint-config/*
+                  - arn:aws:sagemaker:*:*:hyper-parameter-tuning-job/*
+                  - arn:aws:sagemaker:*:*:training-job/*
+                  - arn:aws:sagemaker:*:*:transform-job/*
+                Condition:
+                  ForAnyValue:StringEquals:
+                    sagemaker:InstanceTypes:
+                      - ml.m4.xlarge
+                      - ml.p2.xlarge
+              - Action:
+                  - iam:PassRole
+                Effect: Allow
+                Resource: arn:aws:iam::*:role/*-SageMakerRole-*
+              - Action:
+                  - iam:CreateServiceLinkedRole
+                Effect: Allow
+                Resource: arn:aws:iam::*:role/aws-service-role/*
+
+  BasicNotebookInstance:
+    Type: "AWS::SageMaker::NotebookInstance"
+    Properties:
+      InstanceType: "ml.p2.xlarge"
+      LifecycleConfigName: !GetAtt
+        - BasicNotebookInstanceLifecycleConfig
+        - NotebookInstanceLifecycleConfigName
+      RoleArn: !GetAtt
+        - SageMakerRole
+        - Arn
+      VolumeSizeInGB: 10
+
+  BasicNotebookInstanceLifecycleConfig:
+    Type: "AWS::SageMaker::NotebookInstanceLifecycleConfig"
+    Properties:
+      OnCreate:
+        - Content:
+            Fn::Base64:
+              !Sub |
+                aws s3 cp s3://aws-tc-largeobjects/AWS-200-DLG/v1.0/cifar10_val.rec /home/ec2-user/SageMaker/
+                aws s3 cp s3://aws-tc-largeobjects/AWS-200-DLG/v1.0/cifar10_train.rec /home/ec2-user/SageMaker/
+                mkdir -p /home/ec2-user/SageMaker/src/symbols
+                aws s3 cp s3://${AWS::Region}-tcprod/${S3PathPrefix}/scripts/ /home/ec2-user/SageMaker/ --recursive
+  ReadOnlyGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+
+  GroupAssignment:
+    Type: AWS::IAM::UserToGroupAddition
+    Properties:
+      GroupName: !Ref ReadOnlyGroup
+      Users:
+        - !Ref UserId
+
+Outputs:
+  BasicNotebookInstanceId:
+    Value: !Ref BasicNotebookInstance
+
+  Region:
+    Value: !Ref AWS::Region
+    Description: Lab Region
