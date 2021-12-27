@@ -1,6 +1,6 @@
 import sbt.Def
 
-import scala.{Console => csl}
+import scala.{ Console => csl }
 
 Global / onLoad := {
   val GREEN = csl.GREEN
@@ -49,15 +49,15 @@ lazy val `map-reduce` = (project in file("modules/map-reduce"))
   .dependsOn(cdktf)
 
 def welcomeMessage: Def.Setting[String] = onLoadMessage := {
-  def header(text: String): String = s"${csl.BOLD}${csl.MAGENTA}$text${csl.RESET}"
-  def cmd(text: String): String    = s"${csl.GREEN}> ${csl.CYAN}$text${csl.RESET}"
+  def header(text: String): String                = s"${csl.BOLD}${csl.MAGENTA}$text${csl.RESET}"
+  def cmd(text: String, description: String = "") = f"${csl.GREEN}> ${csl.CYAN}$text%10s $description${csl.RESET}"
   //def subItem(text: String): String = s"  ${Console.YELLOW}> ${Console.CYAN}$text${Console.RESET}"
 
   s"""|${header("sbt")}:
-      |${cmd("build")}       - Prepares sources, compiles and runs tests
-      |${cmd("prepare")}     - Prepares sources by applying both scalafix and scalafmt
-      |${cmd("fmt")}         - Formats source files using scalafmt
-      |${cmd("cdktf/run")}   - Create cdk.tf.json files
+      |${cmd("build", "- Prepares sources, compiles and runs tests")}
+      |${cmd("prepare", "- Prepares sources by applying both scalafix and scalafmt")}
+      |${cmd("fmt", "- Formats source files using scalafmt")}
+      |${cmd("cdktf/run", "- Create cdk.tf.json files")}
       |
       |${header("yarn")}:
       |${cmd("--cwd modules/cdktf/ install")}
