@@ -63,6 +63,18 @@ Spark is a project with many proof of concept modules...
 ## Useful commands
 
 
+### eks
+
+```shell
+
+# Install aws cli and configure
+brew install awscli
+aws configure
+ 
+# configure kube config
+ aws eks --profile awspro --region eu-west-2 update-kubeconfig --name eks-cluster-name
+
+```
 
 
 ### pyenv
